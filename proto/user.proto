@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = "github.com/bendbennett/go-api-demo/proto/user";
+
+message CreateRequest {
+  string first_name = 1;
+  string last_name = 2;
+}
+
+message CreateResponse {
+  string id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string created_at = 4;
+}
+
+service User {
+  rpc Create(CreateRequest) returns (CreateResponse) {}
+}

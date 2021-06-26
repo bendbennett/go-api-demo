@@ -11,35 +11,44 @@ import (
 )
 
 type GRPCRouter struct {
-	logger *log.Entry
-	port   int
+	userServer *userServer
+	logger     *log.Entry
+	port       int
+}
+
+type GRPCControllers struct {
+	UserCreate func(ctx context.Context, in *pb.CreateRequest) (*pb.CreateResponse, error)
 }
 
 // NewGRPCRouter returns a pointer to a GRPCRouter struct
 // populated with the port for the server and a logger.
 func NewGRPCRouter(
+	controllers GRPCControllers,
 	logger *log.Entry,
 	port int,
 ) *GRPCRouter {
 	return &GRPCRouter{
+		&userServer{
+			UnimplementedUserServer: pb.UnimplementedUserServer{},
+			CreateUser:              controllers.UserCreate,
+		},
 		logger,
 		port,
 	}
 }
 
-type server struct {
-	pb.UnimplementedHelloServer
+type CreateUser func(ctx context.Context, in *pb.CreateRequest) (*pb.CreateResponse, error)
+
+type userServer struct {
+	pb.UnimplementedUserServer
+	CreateUser
 }
 
-// Hello is a an implementation of the func required for the
-// server struct to satisfy the hello.HelloServer interface.
-func (s *server) Hello(
+func (us *userServer) Create(
 	ctx context.Context,
-	in *pb.HelloRequest,
-) (*pb.HelloResponse, error) {
-	return &pb.HelloResponse{
-		Message: "Hello " + in.GetName(),
-	}, nil
+	createReq *pb.CreateRequest,
+) (*pb.CreateResponse, error) {
+	return us.CreateUser(ctx, createReq)
 }
 
 // Run configures and starts a gRPC server. A go routine is
@@ -58,9 +67,9 @@ func (r *GRPCRouter) Run(ctx context.Context) error {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterHelloServer(
+	pb.RegisterUserServer(
 		s,
-		&server{},
+		r.userServer,
 	)
 
 	go func() {

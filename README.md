@@ -38,6 +38,66 @@ supports both HTTP and [gRPC](https://support.insomnia.rest/article/188-grpc#ove
 Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl).
 
+## v0.2.0
+
+Adding HTTP and gRPC endpoints for user creation.
+
+Users are stored in-memory.
+
+### HTTP
+#### Request
+
+    curl -i --request POST \
+    --url http://localhost:3000/user \
+    --header 'Content-Type: application/json' \
+    --data '{
+        "first_name": "john",
+        "last_name": "smith"
+    }'
+
+##### Response
+
+    HTTP/1.1 201 Created
+    Content-Type: application/json
+    Date: Tue, 06 Jul 2021 12:03:25 GMT
+    Content-Length: 127
+
+    {
+        "id":"afaa2920-77e4-49d0-a29f-5f2d9b6bf2d1",
+        "first_name":"john",
+        "last_name":"smith",
+        "created_at":"2021-07-06T13:03:25+01:00"
+    }
+
+### gRPC
+
+You'll need to generate a protoset and have 
+[gRPCurl](https://github.com/fullstorydev/grpcurl) installed.
+
+#### Generate protoset
+
+    protoc \
+    -I=proto \
+    --descriptor_set_out=generated/user.protoset \
+    user.proto
+
+#### Request
+
+    grpcurl \
+    -plaintext \
+    -protoset generated/user.protoset \
+    -d '{"first_name": "john", "last_name": "smith"}' \
+    localhost:1234 User/Create
+
+#### Response
+
+    {
+        "id": "ca3d9549-eb8d-4b5a-b45f-3551fb4fbdc9",
+        "firstName": "john",
+        "lastName": "smith",
+        "createdAt": "2021-07-06T13:08:45+01:00"
+    }
+
 ## v0.1.0
 
 Basic HTTP and gRPC server.
@@ -46,7 +106,7 @@ Basic HTTP and gRPC server.
 #### Request
 
     curl -i localhost:3000
- 
+
 ##### Response
 
     HTTP/1.1 200 OK
@@ -55,7 +115,7 @@ Basic HTTP and gRPC server.
 
 ### gRPC
 
-You'll need to generate a protoset and have 
+You'll need to generate a protoset and have
 [gRPCurl](https://github.com/fullstorydev/grpcurl) installed.
 
 #### Generate protoset

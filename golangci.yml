@@ -69,6 +69,7 @@ issues:
     - path: _test\.go
       linters:
         - dupl
+        - govet
         - lll
   exclude-use-default: true
   max-issues-per-linter: 0

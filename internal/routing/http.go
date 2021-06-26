@@ -16,9 +16,14 @@ type HTTPRouter struct {
 	port    int
 }
 
+type HTTPControllers struct {
+	UserCreateController func(w http.ResponseWriter, r *http.Request)
+}
+
 // NewHTTPRouter returns a pointer to an HTTPRouter struct populated
 // with the port for the server, a configured router and a logger.
 func NewHTTPRouter(
+	controllers HTTPControllers,
 	logger *log.Entry,
 	port int,
 ) *HTTPRouter {
@@ -30,6 +35,20 @@ func NewHTTPRouter(
 			w.WriteHeader(http.StatusOK)
 		},
 	)
+
+	for _, route := range []struct {
+		path    string
+		handler http.HandlerFunc
+		method  string
+	}{
+		{
+			path:    "/user",
+			handler: controllers.UserCreateController,
+			method:  http.MethodPost,
+		},
+	} {
+		router.HandleFunc(route.path, route.handler).Methods(route.method)
+	}
 
 	return &HTTPRouter{
 		router,
