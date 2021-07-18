@@ -1,4 +1,8 @@
 SERVICE_NAME=go-api-demo
+MYSQL_DSN=mysql://user:password@tcp(127.0.0.1:3306)/go-api-demo
+MYSQL_MIGRATION_PATH=internal/storage/mysql/migrations
+
+################################################################################
 
 .PHONY: fmt
 fmt:
@@ -39,3 +43,33 @@ run: build
 .PHONY: test
 test: lint
 	go test -v -race -bench=./... -benchmem -timeout=120s -cover -coverprofile=./test/coverage.txt ./...
+
+.PHONY: .env
+.env:
+ifeq (,$(wildcard .env))
+	cp .env.dist .env
+endif
+
+################################################################################
+
+.PHONY: docker-up
+docker-up: .env
+	docker compose -f docker/dev/docker-compose.yml up -d
+
+.PHONY: docker-down
+docker-down:
+	docker compose -f docker/dev/docker-compose.yml down
+
+################################################################################
+
+.PHONY: migrate-up
+migrate-up:
+	migrate -database '${MYSQL_DSN}' -path '${MYSQL_MIGRATION_PATH}' -verbose up
+
+.PHONY: migrate-down
+migrate-down:
+	migrate -database '${MYSQL_DSN}' -path '${MYSQL_MIGRATION_PATH}' -verbose down
+
+.PHONY: migrate-drop
+migrate-drop:
+	migrate -database '${MYSQL_DSN}' -path '${MYSQL_MIGRATION_PATH}' -verbose drop

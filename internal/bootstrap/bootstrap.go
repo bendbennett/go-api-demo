@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"os"
 
-	"github.com/bendbennett/go-api-demo/internal/storage/memory"
 	usercreate "github.com/bendbennett/go-api-demo/internal/user/create"
 	"github.com/bendbennett/go-api-demo/internal/validate"
 
@@ -33,7 +32,10 @@ func New() *app.App {
 		logger.Panic(err)
 	}
 
-	userStorage := memory.NewUserStorage()
+	userStorage, err := NewUserStorage(c)
+	if err != nil {
+		logger.Panic(err)
+	}
 
 	userCreatePresenter := usercreate.NewPresenter()
 

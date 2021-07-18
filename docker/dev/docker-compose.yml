@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  go-api-demo-db:
+    container_name: go-api-demo-db
+    image: "mysql:8"
+    ports:
+      - "3306:3306"
+    environment:
+      PS1: "\\u@\\h:\\w\\$$ "
+      MYSQL_ROOT_PASSWORD: "root"
+      MYSQL_DATABASE: "go-api-demo"
+      MYSQL_USER: "user"
+      MYSQL_PASSWORD: "password"

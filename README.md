@@ -7,7 +7,7 @@ This repo contains code for an API written in Go.
 To run the API you'll need to have Go installed.
 
 ### gRPC
-Install a _Protocol Buffer Compiler_ and the
+Install a _Protocol Buffer Compiler_, and the
 _Go Plugins_ for the compiler (see the
 [gRPC Quickstart](https://grpc.io/docs/languages/go/quickstart/) for details) if you 
 want to:
@@ -38,7 +38,28 @@ supports both HTTP and [gRPC](https://support.insomnia.rest/article/188-grpc#ove
 Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl).
 
-## v0.2.0
+## v0.3.0
+
+Stores created users either in-memory or in MySQL.
+
+To use MySQL storage you'll need to install 
+[golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate) and
+run the following commands:
+
+    make docker-up
+    make migrate-up
+
+Running `make docker-up` will
+* copy `.env.dist` => `.env`
+  * `USER_STORAGE` (either _memory_ or _sql_) determines whether users are stored 
+    in-memory or in MySQL.
+* start a docker-based instance of MySQL.
+
+Running `make migrate-up` creates the table in MySQL for storing users.
+
+The same cURL and gRPCurl requests as described for [v0.2.0](#v0.2.0) can be used.
+
+## <a name="v0.2.0"></a>v0.2.0
 
 Adding HTTP and gRPC endpoints for user creation.
 

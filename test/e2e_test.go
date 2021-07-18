@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -15,6 +16,11 @@ import (
 	"github.com/bendbennett/go-api-demo/internal/bootstrap"
 	"github.com/bendbennett/go-api-demo/internal/config"
 	"github.com/bendbennett/go-api-demo/internal/validate"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/golang-migrate/migrate"
+	migratemysql "github.com/golang-migrate/migrate/database/mysql"
+	_ "github.com/golang-migrate/migrate/source/file"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -27,6 +33,73 @@ func Test_E2E(t *testing.T) {
 	}
 
 	if err := os.Setenv("GRPC_PORT", "1235"); err != nil {
+		t.Error(err)
+	}
+
+	testInMemory(t)
+	testSQL(t)
+}
+
+func testInMemory(t *testing.T) {
+	a := bootstrap.New()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		return a.Run(egCtx)
+	})
+
+	httpClient := newHTTPClient()
+	grpcClient := newGRPCClient()
+
+	// User - Create
+	userCreateHTTP(t, httpClient)
+	_ = userCreateGRPC(t, grpcClient)
+
+	cancel()
+	err := eg.Wait()
+	require.NoError(t, err)
+}
+
+func testSQL(t *testing.T) {
+	_ = godotenv.Load("../.env")
+
+	db, err := sql.Open(
+		"mysql",
+		fmt.Sprintf(
+			"%s:%s@tcp(%s:%s)/%s?parseTime=true",
+			config.GetEnvAsString("MYSQL_USER", ""),
+			config.GetEnvAsString("MYSQL_PASSWORD", ""),
+			config.GetEnvAsString("MYSQL_HOST", ""),
+			config.GetEnvAsString("MYSQL_PORT", ""),
+			config.GetEnvAsString("MYSQL_DBNAME", ""),
+		),
+	)
+	if err != nil {
+		t.Error(err)
+	}
+
+	dbInstance, err := migratemysql.WithInstance(db, &migratemysql.Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://../internal/storage/mysql/migrations",
+		"mysql",
+		dbInstance,
+	)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if err := m.Drop(); err != nil && err != migrate.ErrNoChange {
+		t.Error(err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		t.Error(err)
 	}
 
@@ -44,11 +117,11 @@ func Test_E2E(t *testing.T) {
 	grpcClient := newGRPCClient()
 
 	// User - Create
-	_ = userCreateHTTP(t, httpClient)
+	userCreateHTTP(t, httpClient)
 	_ = userCreateGRPC(t, grpcClient)
 
 	cancel()
-	err := eg.Wait()
+	err = eg.Wait()
 	require.NoError(t, err)
 }
 
@@ -123,7 +196,7 @@ type errResponseHTTP struct {
 	Message string            `json:"message"`
 }
 
-func userCreateHTTP(t *testing.T, httpClient *httpClient) userHTTP {
+func userCreateHTTP(t *testing.T, httpClient *httpClient) {
 	// Malformed JSON
 	statusCode, body, err := httpClient.doRequest(httpRequest{
 		method: http.MethodPost,
@@ -190,8 +263,6 @@ func userCreateHTTP(t *testing.T, httpClient *httpClient) userHTTP {
 	assert.Equal(t, "smith", userHTTP.LastName)
 	_, err = time.Parse(time.RFC3339, userHTTP.CreatedAt)
 	assert.NoError(t, err)
-
-	return userHTTP
 }
 
 type grpcClient struct {
