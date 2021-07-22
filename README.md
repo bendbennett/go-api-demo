@@ -38,6 +38,76 @@ supports both HTTP and [gRPC](https://support.insomnia.rest/article/188-grpc#ove
 Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl).
 
+## v0.4.0
+
+Adding HTTP and gRPC endpoints for retrieving users.
+
+### HTTP
+#### Request
+
+    curl -i --request GET \
+    --url http://localhost:3000/user
+
+##### Response
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    Date: Mon, 26 Jul 2021 19:29:12 GMT
+    Content-Length: 251
+
+    [
+      {
+        "id":"39965d61-01f2-4d6d-8215-4bb88ef2a837",
+        "first_name":"john",
+        "last_name":"smith",
+        "created_at":"2021-07-26T19:23:52Z"
+      },
+      {
+        "id":"c0e137e3-6689-41c3-a421-0bf44f44d746",
+        "first_name":"joanna",
+        "last_name":"smithson",
+        "created_at":"2021-07-26T19:23:52Z"
+      }
+    ]
+
+### gRPC
+
+You'll need to generate a protoset and have
+[gRPCurl](https://github.com/fullstorydev/grpcurl) installed.
+
+#### Generate protoset
+
+    protoc \
+    -I=proto \
+    --descriptor_set_out=generated/user.protoset \
+    user.proto
+
+#### Request
+
+    grpcurl \
+    -plaintext \
+    -protoset generated/user.protoset \
+    localhost:1234 User/Read
+
+#### Response
+
+    {
+      "users": [
+        {
+          "id": "39965d61-01f2-4d6d-8215-4bb88ef2a837",
+          "firstName": "john",
+          "lastName": "smith",
+          "createdAt": "2021-07-26T19:23:52Z"
+        },
+        {
+          "id": "c0e137e3-6689-41c3-a421-0bf44f44d746",
+          "firstName": "joanna",
+          "lastName": "smithson",
+          "createdAt": "2021-07-26T19:23:52Z"
+        }
+      ]
+    }
+
 ## v0.3.0
 
 Stores created users either in-memory or in MySQL.

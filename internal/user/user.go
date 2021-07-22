@@ -12,10 +12,15 @@ type User struct {
 	LastName  string
 }
 
+type CommandQuery interface {
+	Creator
+	Reader
+}
+
 type Creator interface {
 	Create(context.Context, ...User) error
 }
 
 type Reader interface {
-	FindAll(context.Context) ([]User, error)
+	Read(context.Context) ([]User, error)
 }

@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
 
-const StorageMemory = "memory"
-const StorageSQL = "sql"
+const StorageTypeMemory = "memory"
+const StorageTypeSQL = "sql"
 
 type Config struct {
 	MySQL    *mysql.Config
@@ -20,7 +21,8 @@ type Config struct {
 }
 
 type Storage struct {
-	UserStorage string
+	Type         string
+	QueryTimeout time.Duration
 }
 
 // New returns a populated Config struct with values
@@ -57,9 +59,15 @@ func New() Config {
 			AllowNativePasswords: true,
 		},
 		Storage: Storage{
-			UserStorage: GetEnvAsString(
-				"USER_STORAGE",
-				StorageMemory),
+			Type: GetEnvAsString(
+				"STORAGE_TYPE",
+				StorageTypeMemory),
+			QueryTimeout: time.Millisecond * time.Duration(
+				GetEnvAsInt(
+					"STORAGE_QUERY_TIMEOUT",
+					3000,
+				),
+			),
 		},
 		HTTPPort: GetEnvAsInt(
 			"HTTP_PORT",

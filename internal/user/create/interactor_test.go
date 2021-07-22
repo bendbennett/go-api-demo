@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bendbennett/go-api-demo/internal/validate"
-
 	"github.com/bendbennett/go-api-demo/internal/user"
+	"github.com/bendbennett/go-api-demo/internal/validate"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -65,9 +64,11 @@ func TestInteractor_Create(t *testing.T) {
 			if c.returnsErr {
 				assert.Error(t, err)
 				assert.Equal(t, c.expectedOutputData.ID, od.ID)
+				assert.Equal(t, c.expectedOutputData.CreatedAt, od.CreatedAt)
 			} else {
 				assert.NoError(t, err)
 				assert.True(t, validate.IsUUID(od.ID))
+				assert.True(t, !od.CreatedAt.IsZero())
 			}
 
 			assert.Equal(t, c.expectedOutputData.FirstName, od.FirstName)

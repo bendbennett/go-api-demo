@@ -19,7 +19,7 @@ func TestGRPC_Create(t *testing.T) {
 		interactor       interactor
 		presenter        presenter
 		request          *pb.CreateRequest
-		expectedResponse *pb.CreateResponse
+		expectedResponse *pb.UserResponse
 		expectedError    bool
 	}{
 		{
@@ -54,7 +54,7 @@ func TestGRPC_Create(t *testing.T) {
 				FirstName: "john",
 				LastName:  "smith",
 			},
-			&pb.CreateResponse{
+			&pb.UserResponse{
 				Id:        "0a81dec3-3638-4eb4-b04a-83d744f5f3a8",
 				FirstName: "john",
 				LastName:  "smith",

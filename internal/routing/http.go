@@ -18,6 +18,7 @@ type HTTPRouter struct {
 
 type HTTPControllers struct {
 	UserCreateController func(w http.ResponseWriter, r *http.Request)
+	UserReadController   func(w http.ResponseWriter, r *http.Request)
 }
 
 // NewHTTPRouter returns a pointer to an HTTPRouter struct populated
@@ -45,6 +46,11 @@ func NewHTTPRouter(
 			path:    "/user",
 			handler: controllers.UserCreateController,
 			method:  http.MethodPost,
+		},
+		{
+			path:    "/user",
+			handler: controllers.UserReadController,
+			method:  http.MethodGet,
 		},
 	} {
 		router.HandleFunc(route.path, route.handler).Methods(route.method)

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net"
 
-	pb "github.com/bendbennett/go-api-demo/generated"
+	"google.golang.org/grpc/reflection"
+
+	user "github.com/bendbennett/go-api-demo/generated"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -17,7 +19,8 @@ type GRPCRouter struct {
 }
 
 type GRPCControllers struct {
-	UserCreate func(ctx context.Context, in *pb.CreateRequest) (*pb.CreateResponse, error)
+	UserCreate func(ctx context.Context, in *user.CreateRequest) (*user.UserResponse, error)
+	UserRead   func(ctx context.Context, in *user.ReadRequest) (*user.UsersResponse, error)
 }
 
 // NewGRPCRouter returns a pointer to a GRPCRouter struct
@@ -29,26 +32,36 @@ func NewGRPCRouter(
 ) *GRPCRouter {
 	return &GRPCRouter{
 		&userServer{
-			UnimplementedUserServer: pb.UnimplementedUserServer{},
-			CreateUser:              controllers.UserCreate,
+			UnimplementedUserServer: user.UnimplementedUserServer{},
+			UserCreate:              controllers.UserCreate,
+			UserRead:                controllers.UserRead,
 		},
 		logger,
 		port,
 	}
 }
 
-type CreateUser func(ctx context.Context, in *pb.CreateRequest) (*pb.CreateResponse, error)
+type UserCreate func(ctx context.Context, in *user.CreateRequest) (*user.UserResponse, error)
+type UserRead func(ctx context.Context, in *user.ReadRequest) (*user.UsersResponse, error)
 
 type userServer struct {
-	pb.UnimplementedUserServer
-	CreateUser
+	user.UnimplementedUserServer
+	UserCreate
+	UserRead
 }
 
 func (us *userServer) Create(
 	ctx context.Context,
-	createReq *pb.CreateRequest,
-) (*pb.CreateResponse, error) {
-	return us.CreateUser(ctx, createReq)
+	createReq *user.CreateRequest,
+) (*user.UserResponse, error) {
+	return us.UserCreate(ctx, createReq)
+}
+
+func (us *userServer) Read(
+	ctx context.Context,
+	readReq *user.ReadRequest,
+) (*user.UsersResponse, error) {
+	return us.UserRead(ctx, readReq)
 }
 
 // Run configures and starts a gRPC server. A go routine is
@@ -67,10 +80,12 @@ func (r *GRPCRouter) Run(ctx context.Context) error {
 	}
 
 	s := grpc.NewServer()
-	pb.RegisterUserServer(
+	user.RegisterUserServer(
 		s,
 		r.userServer,
 	)
+
+	reflection.Register(s)
 
 	go func() {
 		<-ctx.Done()

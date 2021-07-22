@@ -7,13 +7,20 @@ message CreateRequest {
   string last_name = 2;
 }
 
-message CreateResponse {
+message UserResponse {
   string id = 1;
   string first_name = 2;
   string last_name = 3;
   string created_at = 4;
 }
 
+message ReadRequest{}
+
+message UsersResponse {
+  repeated UserResponse users = 1;
+}
+
 service User {
-  rpc Create(CreateRequest) returns (CreateResponse) {}
+  rpc Create(CreateRequest) returns (UserResponse) {}
+  rpc Read(ReadRequest) returns (UsersResponse) {}
 }

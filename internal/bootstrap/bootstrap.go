@@ -4,6 +4,7 @@ import (
 	"os"
 
 	usercreate "github.com/bendbennett/go-api-demo/internal/user/create"
+	userread "github.com/bendbennett/go-api-demo/internal/user/read"
 	"github.com/bendbennett/go-api-demo/internal/validate"
 
 	"github.com/bendbennett/go-api-demo/internal/app"
@@ -48,8 +49,19 @@ func New() *app.App {
 		logger,
 	)
 
+	userReadPresenter := userread.NewPresenter()
+
+	userReadControllerHTTP := userread.NewHTTPController(
+		userread.NewInteractor(
+			userStorage,
+		),
+		userReadPresenter,
+		logger,
+	)
+
 	httpControllers := routing.HTTPControllers{
 		UserCreateController: userCreateControllerHTTP.Create,
+		UserReadController:   userReadControllerHTTP.Create,
 	}
 
 	httpRouter := routing.NewHTTPRouter(
@@ -67,8 +79,17 @@ func New() *app.App {
 		logger,
 	)
 
+	userReadControllerGRPC := userread.NewGRPCController(
+		userread.NewInteractor(
+			userStorage,
+		),
+		userReadPresenter,
+		logger,
+	)
+
 	grpcControllers := routing.GRPCControllers{
 		UserCreate: userCreateControllerGRPC.Create,
+		UserRead:   userReadControllerGRPC.Read,
 	}
 
 	grpcRouter := routing.NewGRPCRouter(

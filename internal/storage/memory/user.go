@@ -31,3 +31,13 @@ func (u *UserStorage) Create(
 
 	return nil
 }
+
+func (u *UserStorage) Read(context.Context) ([]user.User, error) {
+	var users []user.User
+
+	for _, u := range u.users {
+		users = append(users, u)
+	}
+
+	return users, nil
+}

@@ -56,7 +56,11 @@ func testInMemory(t *testing.T) {
 
 	// User - Create
 	userCreateHTTP(t, httpClient)
-	_ = userCreateGRPC(t, grpcClient)
+	userCreateGRPC(t, grpcClient)
+
+	// User - Read
+	userReadHTTP(t, httpClient)
+	userReadGRPC(t, grpcClient)
 
 	cancel()
 	err := eg.Wait()
@@ -118,7 +122,11 @@ func testSQL(t *testing.T) {
 
 	// User - Create
 	userCreateHTTP(t, httpClient)
-	_ = userCreateGRPC(t, grpcClient)
+	userCreateGRPC(t, grpcClient)
+
+	// User - Read
+	userReadHTTP(t, httpClient)
+	userReadGRPC(t, grpcClient)
 
 	cancel()
 	err = eg.Wait()
@@ -190,6 +198,8 @@ type userHTTP struct {
 	LastName  string `json:"last_name"`
 	CreatedAt string `json:"created_at"`
 }
+
+type usersHTTP []userHTTP
 
 type errResponseHTTP struct {
 	Errors  map[string]string `json:"errors"`
@@ -265,6 +275,33 @@ func userCreateHTTP(t *testing.T, httpClient *httpClient) {
 	assert.NoError(t, err)
 }
 
+func userReadHTTP(t *testing.T, httpClient *httpClient) {
+	// Success
+	statusCode, body, err := httpClient.doRequest(httpRequest{
+		method: http.MethodGet,
+		url:    fmt.Sprintf("%v/user", httpClient.baseURL),
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, statusCode)
+
+	usersHTTP := usersHTTP{}
+	err = json.Unmarshal(body, &usersHTTP)
+	assert.NoError(t, err)
+
+	assert.Len(t, usersHTTP, 2)
+	assert.True(t, validate.IsUUID(usersHTTP[0].ID))
+	assert.NotEmpty(t, usersHTTP[0].FirstName)
+	assert.NotEmpty(t, usersHTTP[0].LastName)
+	_, err = time.Parse(time.RFC3339, usersHTTP[0].CreatedAt)
+	assert.NoError(t, err)
+	assert.True(t, validate.IsUUID(usersHTTP[1].ID))
+	assert.NotEmpty(t, usersHTTP[1].FirstName)
+	assert.NotEmpty(t, usersHTTP[1].LastName)
+	_, err = time.Parse(time.RFC3339, usersHTTP[1].CreatedAt)
+	assert.NoError(t, err)
+}
+
 type grpcClient struct {
 	userClient user.UserClient
 }
@@ -294,12 +331,12 @@ func newGRPCClient() *grpcClient {
 	}
 }
 
-func userCreateGRPC(t *testing.T, grpcClient *grpcClient) *user.CreateResponse {
+func userCreateGRPC(t *testing.T, grpcClient *grpcClient) {
 	// Missing required field
 	_, err := grpcClient.userClient.Create(
 		context.Background(),
 		&user.CreateRequest{
-			FirstName: "john",
+			FirstName: "joanna",
 		})
 
 	require.Error(t, err)
@@ -309,7 +346,7 @@ func userCreateGRPC(t *testing.T, grpcClient *grpcClient) *user.CreateResponse {
 		context.Background(),
 		&user.CreateRequest{
 			FirstName: "j",
-			LastName:  "smith",
+			LastName:  "smithson",
 		})
 
 	require.Error(t, err)
@@ -318,16 +355,39 @@ func userCreateGRPC(t *testing.T, grpcClient *grpcClient) *user.CreateResponse {
 	userGRPC, err := grpcClient.userClient.Create(
 		context.Background(),
 		&user.CreateRequest{
-			FirstName: "john",
-			LastName:  "smith",
+			FirstName: "joanna",
+			LastName:  "smithson",
 		})
 
 	require.NoError(t, err)
 	assert.True(t, validate.IsUUID(userGRPC.Id))
-	assert.Equal(t, "john", userGRPC.FirstName)
-	assert.Equal(t, "smith", userGRPC.LastName)
+	assert.Equal(t, "joanna", userGRPC.FirstName)
+	assert.Equal(t, "smithson", userGRPC.LastName)
 	_, err = time.Parse(time.RFC3339, userGRPC.CreatedAt)
 	assert.NoError(t, err)
+}
 
-	return userGRPC
+func userReadGRPC(t *testing.T, grpcClient *grpcClient) {
+	// Success
+	usersGRPC, err := grpcClient.userClient.Read(
+		context.Background(),
+		&user.ReadRequest{},
+	)
+
+	assert.NoError(t, err)
+	assert.Len(t, usersGRPC.Users, 2)
+
+	assert.True(t, validate.IsUUID(usersGRPC.Users[0].Id))
+	assert.NotEmpty(t, usersGRPC.Users[0].FirstName)
+	assert.NotEmpty(t, usersGRPC.Users[0].LastName)
+	createdAt, err := time.Parse(time.RFC3339, usersGRPC.Users[0].CreatedAt)
+	assert.NoError(t, err)
+	assert.True(t, !createdAt.IsZero())
+
+	assert.True(t, validate.IsUUID(usersGRPC.Users[1].Id))
+	assert.NotEmpty(t, usersGRPC.Users[1].FirstName)
+	assert.NotEmpty(t, usersGRPC.Users[1].LastName)
+	createdAt, err = time.Parse(time.RFC3339, usersGRPC.Users[1].CreatedAt)
+	assert.NoError(t, err)
+	assert.True(t, !createdAt.IsZero())
 }

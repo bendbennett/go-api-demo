@@ -12,15 +12,21 @@ import (
 
 type DB interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
 type UserStorage struct {
-	db DB
+	db           DB
+	queryTimeout time.Duration
 }
 
-func NewUserStorage(db DB) *UserStorage {
+func NewUserStorage(
+	db DB,
+	queryTimeout time.Duration,
+) *UserStorage {
 	return &UserStorage{
-		db: db,
+		db:           db,
+		queryTimeout: queryTimeout,
 	}
 }
 
@@ -30,7 +36,7 @@ func (u *UserStorage) Create(
 ) error {
 	ctx, cancel := context.WithTimeout(
 		ctx,
-		time.Second*3,
+		u.queryTimeout,
 	)
 	defer cancel()
 
@@ -62,4 +68,49 @@ func (u *UserStorage) Create(
 	}
 
 	return nil
+}
+
+func (u *UserStorage) Read(ctx context.Context) ([]user.User, error) {
+	ctx, cancel := context.WithTimeout(
+		ctx,
+		u.queryTimeout,
+	)
+	defer cancel()
+
+	qry := `
+SELECT id, first_name, last_name, created_at
+FROM users
+`
+
+	rows, err := u.db.QueryContext(
+		ctx,
+		qry,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []user.User
+
+	for rows.Next() {
+		var u user.User
+
+		err := rows.Scan(
+			&u.ID,
+			&u.FirstName,
+			&u.LastName,
+			&u.CreatedAt,
+		)
+		if err != nil {
+			return users, err
+		}
+
+		users = append(users, u)
+	}
+	if err = rows.Err(); err != nil {
+		return users, err
+	}
+
+	return users, nil
 }

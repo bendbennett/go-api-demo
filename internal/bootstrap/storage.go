@@ -11,13 +11,13 @@ import (
 	sqldriver "github.com/go-sql-driver/mysql"
 )
 
-func NewUserStorage(c config.Config) (user.Creator, error) {
+func NewUserStorage(c config.Config) (user.CommandQuery, error) {
 	var (
 		handle interface{}
 		err    error
 	)
 
-	if c.Storage.UserStorage == config.StorageSQL {
+	if c.Storage.Type == config.StorageTypeSQL {
 		handle, err = sqlDB(c.MySQL)
 		if err != nil {
 			return nil, err
@@ -26,7 +26,10 @@ func NewUserStorage(c config.Config) (user.Creator, error) {
 
 	switch h := handle.(type) {
 	case *sql.DB:
-		return mysql.NewUserStorage(h), nil
+		return mysql.NewUserStorage(
+			h,
+			c.Storage.QueryTimeout,
+		), nil
 	default:
 		return memory.NewUserStorage(), nil
 	}

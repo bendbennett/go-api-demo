@@ -17,7 +17,7 @@ type grpcController struct {
 }
 
 type GRPCController interface {
-	Create(context.Context, *user.CreateRequest) (*user.CreateResponse, error)
+	Create(context.Context, *user.CreateRequest) (*user.UserResponse, error)
 }
 
 func NewGRPCController(
@@ -37,7 +37,7 @@ func NewGRPCController(
 func (c *grpcController) Create(
 	ctx context.Context,
 	req *user.CreateRequest,
-) (*user.CreateResponse, error) {
+) (*user.UserResponse, error) {
 	input := inputData{
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
@@ -60,7 +60,7 @@ func (c *grpcController) Create(
 
 	vm := c.presenter.viewModel(od)
 
-	return &user.CreateResponse{
+	return &user.UserResponse{
 		Id:        vm.ID,
 		FirstName: vm.FirstName,
 		LastName:  vm.LastName,
