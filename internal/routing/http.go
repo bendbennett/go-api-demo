@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -37,6 +39,27 @@ func NewHTTPRouter(
 		},
 	)
 
+	router.HandleFunc(
+		"/metrics",
+		promhttp.Handler().ServeHTTP,
+	)
+
+	duration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: []float64{.001, .002, .005, .01, .02, .05, .1, .2, .5},
+		},
+		[]string{"route", "method", "code"},
+	)
+
+	err := prometheus.Register(duration)
+	if err != nil {
+		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+			logger.Panic(err)
+		}
+	}
+
 	for _, route := range []struct {
 		path    string
 		handler http.HandlerFunc
@@ -53,7 +76,19 @@ func NewHTTPRouter(
 			method:  http.MethodGet,
 		},
 	} {
-		router.HandleFunc(route.path, route.handler).Methods(route.method)
+		router.HandleFunc(
+			route.path,
+
+			promhttp.InstrumentHandlerDuration(
+				duration.MustCurryWith(
+					prometheus.Labels{
+						"route":  route.path,
+						"method": route.method,
+					},
+				),
+				route.handler,
+			),
+		).Methods(route.method)
 	}
 
 	return &HTTPRouter{

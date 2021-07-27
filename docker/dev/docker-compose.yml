@@ -3,12 +3,40 @@ version: '3'
 services:
   go-api-demo-db:
     container_name: go-api-demo-db
-    image: "mysql:8"
+    image: mysql:8
     ports:
-      - "3306:3306"
+      - 3306:3306
     environment:
       PS1: "\\u@\\h:\\w\\$$ "
       MYSQL_ROOT_PASSWORD: "root"
       MYSQL_DATABASE: "go-api-demo"
       MYSQL_USER: "user"
       MYSQL_PASSWORD: "password"
+
+  go-api-demo-prometheus:
+    container_name: go-api-demo-prometheus
+    image: prom/prometheus:latest
+    volumes:
+      - ../prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - 9090:9090
+    labels:
+      org.label-schema.group: "monitoring"
+
+  go-api-demo-grafana:
+    container_name: go-api-demo-grafana
+    image: grafana/grafana:latest
+    volumes:
+      - ../grafana/config/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
+      - ../grafana/config/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ../grafana/storage:/var/lib/grafana
+      - ../grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - 3456:3000
