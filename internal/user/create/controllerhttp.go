@@ -4,16 +4,16 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/response"
 	"github.com/bendbennett/go-api-demo/internal/validate"
-	log "github.com/sirupsen/logrus"
 )
 
 type httpController struct {
 	validator  validate.Validator
 	interactor interactor
 	presenter  presenter
-	logger     *log.Entry
+	logger     log.Logger
 }
 
 type HTTPController interface {
@@ -24,7 +24,7 @@ func NewHTTPController(
 	validator validate.Validator,
 	interactor interactor,
 	presenter presenter,
-	logger *log.Entry,
+	logger log.Logger,
 ) *httpController {
 	return &httpController{
 		validator,
@@ -43,7 +43,7 @@ func (c *httpController) Create(
 
 	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
-		c.logger.Errorf("json body invalid: %v", err)
+		c.logger.WithSpan(ctx).Errorf("json body invalid: %v", err)
 		response.WriteErrorResponse(
 			w,
 			http.StatusBadRequest,
@@ -55,7 +55,7 @@ func (c *httpController) Create(
 
 	errs := c.validator.ValidateStruct(input)
 	if errs != nil {
-		c.logger.Infof("input invalid: %v", errs)
+		c.logger.WithSpan(ctx).Infof("input invalid: %v", errs)
 		response.WriteErrorResponse(
 			w,
 			http.StatusBadRequest,
@@ -70,7 +70,7 @@ func (c *httpController) Create(
 		input,
 	)
 	if err != nil {
-		c.logger.Warn(err)
+		c.logger.WithSpan(ctx).Error(err)
 		response.Write500Response(w)
 		return
 	}

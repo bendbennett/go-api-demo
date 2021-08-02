@@ -25,6 +25,8 @@ func main() {
 		log.Fatalf("app run failed: %v", err)
 	}
 
+	app.Close()
+
 	os.Exit(0)
 }
 

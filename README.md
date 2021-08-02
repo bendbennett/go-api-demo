@@ -36,7 +36,92 @@ You can test the API manually using a client. For instance
 supports both HTTP and [gRPC](https://support.insomnia.rest/article/188-grpc#overview). 
 
 Alternatively, requests can be issued using cURL and
-[gRPCurl](https://github.com/fullstorydev/grpcurl).
+[gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0), 
+[v0.3.0](#v0.3.0), [v0.4.0](#v0.4.0)).
+
+## v0.6.0
+
+Adds tracing using [Jaeger](https://www.jaegertracing.io/) 
+(see [Quick Start](https://opentracing.io/guides/golang/quick-start/)) and further 
+metrics around gRPC requests.
+
+### Set-up
+
+    make docker-up
+
+_Jaeger_ is accessible at [http://localhost:16686](http://localhost:16686).
+
+### Tracing
+
+#### Overview 
+
+Using the cURL and/or gRPCurl requests for _user_ endpoints (see [v0.2.0](#v0.2.0),
+[v0.3.0](#v0.3.0) and [v0.4.0](#v0.4.0)) will generate traces.
+
+The following illustrates traces generated from:
+* gRPC request to /User/Read endpoint
+* HTTP request to GET /user endpoint
+* MySQL ping during application boot
+
+![jaeger_user_get_http_grpc](img/jaeger_user_get_http_grpc.png)
+
+#### Individual traces
+
+Drilling into the HTTP request reveals further information about where time is spent. 
+This particular request takes 5.16 ms, 4.15 ms (~80%) of which is consumed by the SQL 
+query.
+
+![jaeger_user_get_http_detail](img/jaeger_user_get_http_detail.png)
+
+### Logging and Tracing with Load Testing
+
+#### Slow Requests
+
+Running the _k6_ script (see [docker](#k6_docker) or [local](#k6_local)) reveals that as
+the number of requests increases the length of time spent trying to obtain a SQL 
+connection increases.
+
+![jaeger_user_get_http_slow](img/jaeger_user_get_http_slow.png)
+
+#### Failures
+
+As the number of requests increases further failures are visible both in the logs and
+in the corresponding traces.
+
+##### Error - Too many connections
+
+```
+{
+  "level": "error",
+  "ts": 1628240198.250581,
+  "caller": "log/spanlogger.go:35",
+  "msg": "Error 1040: Too many connections",
+  "commit_hash": "a94f733b84fe0f102e658f8a6a77a512d57476fb",
+  "trace_id": "466ea0fc21ccdf27",
+  "span_id": "466ea0fc21ccdf27",
+  "stacktrace": "github.com/bendbennett/go-api-demo/internal/log.spanLogger.Error...."
+}
+```
+
+![jaeger_user_get_http_connection_error](img/jaeger_user_get_http_connection_error.png)
+
+##### Error - Context deadline exceeded
+
+```
+{
+  "level": "error",
+  "ts": 1628240198.376878,
+  "caller": "log/spanlogger.go:35",
+  "msg": "context deadline exceeded",
+  "commit_hash": "a94f733b84fe0f102e658f8a6a77a512d57476fb",
+  "trace_id": "5875ddde4e48b9c2",
+  "span_id": "5875ddde4e48b9c2",
+  "stacktrace": "github.com/bendbennett/go-api-demo/internal/log.spanLogger.Error...."
+}
+
+```
+
+![jaeger_user_get_deadline_exceeded_error](img/jaeger_user_get_deadline_exceeded_error.png)
 
 ## v0.5.0
 
@@ -47,7 +132,7 @@ Adds metrics and dashboard visualisation for HTTP request duration, using
 
     make docker-up
 
-_Prometheus_ is accessible at [http://localhost:9090](http://localhost:9090)
+_Prometheus_ is accessible at [http://localhost:9090](http://localhost:9090).
 
 _Grafana_ is accessible at [http://localhost:3456](http://localhost:3456)
 * The dashboard for requests can be found by using _Search_ and drilling into the
@@ -105,7 +190,7 @@ The rps then decreases and more of the successful requests take longer, plateaui
 the sustained load of 200 vus and is accompanied by the emergence of failed (500) 
 requests. 
 
-##### Logs
+##### <a name="logs"></a>Logs
 
 ```
 {"commitHash":"e04cc2d0917ead700130dd378376a75a21c99930","level":"warning","msg":"context deadline exceeded","time":"2021-07-30T08:58:03+01:00"}
@@ -200,7 +285,7 @@ default ✓ [======================================] 000/200 VUs  5m0s
      vus_max........................: 200     min=200       max=200
 ```
 
-## v0.4.0
+## <a name="v0.4.0"></a>v0.4.0
 
 Adding HTTP and gRPC endpoints for retrieving users.
 

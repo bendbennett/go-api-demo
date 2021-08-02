@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"io"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -22,15 +23,18 @@ type Component interface {
 type App struct {
 	httpRouter Component
 	grpcRouter Component
+	closers    []io.Closer
 }
 
 func New(
 	httpRouter Component,
 	grpcRouter Component,
+	closers []io.Closer,
 ) *App {
 	return &App{
 		httpRouter,
 		grpcRouter,
+		closers,
 	}
 }
 
@@ -50,4 +54,10 @@ func (a *App) Run(ctx context.Context) error {
 	})
 
 	return eg.Wait()
+}
+
+func (a *App) Close() {
+	for _, closer := range a.closers {
+		_ = closer.Close()
+	}
 }

@@ -3,13 +3,15 @@ package read
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -52,9 +54,9 @@ func TestRest_Create(t *testing.T) {
 		},
 	}
 
-	l := log.New()
-	l.SetOutput(io.Discard)
-	logger := l.WithFields(nil)
+	zc, _ := observer.New(zapcore.DebugLevel)
+	zl := zap.New(zc)
+	logger := log.NewLogger(zl)
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -67,7 +69,7 @@ func TestRest_Create(t *testing.T) {
 				logger,
 			)
 
-			controller.Create(w, r)
+			controller.Read(w, r)
 
 			// Flatten JSON formatted response body.
 			expectedResponseBody := bytes.NewBuffer(nil)

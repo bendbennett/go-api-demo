@@ -11,9 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bendbennett/go-api-demo/internal/validate"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/bendbennett/go-api-demo/internal/log"
+	"github.com/bendbennett/go-api-demo/internal/validate"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -122,9 +125,9 @@ func TestRest_Create(t *testing.T) {
 		},
 	}
 
-	l := log.New()
-	l.SetOutput(io.Discard)
-	logger := l.WithFields(nil)
+	zc, _ := observer.New(zapcore.DebugLevel)
+	zl := zap.New(zc)
+	logger := log.NewLogger(zl)
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

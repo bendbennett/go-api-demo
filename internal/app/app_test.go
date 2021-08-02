@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ func TestRun_NoError(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	a := New(&okComponent{}, &okComponent{})
+	a := New(&okComponent{}, &okComponent{}, []io.Closer{})
 
 	go func() {
 		<-time.After(time.Millisecond)
@@ -42,7 +43,7 @@ func TestRun_Error(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	a := New(&errorComponent{}, &okComponent{})
+	a := New(&errorComponent{}, &okComponent{}, []io.Closer{})
 
 	err := a.Run(ctx)
 	require.Error(t, err)

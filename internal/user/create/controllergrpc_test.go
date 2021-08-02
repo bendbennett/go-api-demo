@@ -2,14 +2,16 @@ package create
 
 import (
 	"context"
-	"io"
 	"testing"
 
-	pb "github.com/bendbennett/go-api-demo/generated"
-	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
+	pb "github.com/bendbennett/go-api-demo/generated"
+	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/validate"
-	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGRPC_Create(t *testing.T) {
@@ -64,9 +66,9 @@ func TestGRPC_Create(t *testing.T) {
 		},
 	}
 
-	l := log.New()
-	l.SetOutput(io.Discard)
-	logger := l.WithFields(nil)
+	zc, _ := observer.New(zapcore.DebugLevel)
+	zl := zap.New(zc)
+	logger := log.NewLogger(zl)
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

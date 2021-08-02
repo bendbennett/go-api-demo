@@ -16,6 +16,9 @@ const StorageTypeSQL = "sql"
 type Config struct {
 	MySQL    *mysql.Config
 	Storage  Storage
+	Metrics  Metrics
+	Tracing  Tracing
+	Logging  Logging
 	HTTPPort int
 	GRPCPort int
 }
@@ -23,6 +26,18 @@ type Config struct {
 type Storage struct {
 	Type         string
 	QueryTimeout time.Duration
+}
+
+type Metrics struct {
+	Enabled bool
+}
+
+type Tracing struct {
+	Enabled bool
+}
+
+type Logging struct {
+	Production bool
 }
 
 // New returns a populated Config struct with values
@@ -61,12 +76,31 @@ func New() Config {
 		Storage: Storage{
 			Type: GetEnvAsString(
 				"STORAGE_TYPE",
-				StorageTypeMemory),
+				StorageTypeMemory,
+			),
 			QueryTimeout: time.Millisecond * time.Duration(
 				GetEnvAsInt(
 					"STORAGE_QUERY_TIMEOUT",
 					3000,
 				),
+			),
+		},
+		Metrics: Metrics{
+			Enabled: GetEnvAsBool(
+				"METRICS_ENABLED",
+				true,
+			),
+		},
+		Tracing: Tracing{
+			Enabled: GetEnvAsBool(
+				"TRACING_ENABLED",
+				true,
+			),
+		},
+		Logging: Logging{
+			Production: GetEnvAsBool(
+				"LOGGING_PRODUCTION",
+				false,
 			),
 		},
 		HTTPPort: GetEnvAsInt(
@@ -102,6 +136,22 @@ func GetEnvAsString(
 ) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
+	}
+
+	return defaultVal
+}
+
+func GetEnvAsBool(
+	key string,
+	defaultVal bool,
+) bool {
+	if val, ok := os.LookupEnv(key); ok {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			panic(err)
+		}
+
+		return boolVal
 	}
 
 	return defaultVal

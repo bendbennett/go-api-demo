@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	user "github.com/bendbennett/go-api-demo/generated"
+	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/validate"
-	log "github.com/sirupsen/logrus"
 )
 
 type grpcController struct {
 	validator  validate.Validator
 	interactor interactor
 	presenter  presenter
-	logger     *log.Entry
+	logger     log.Logger
 }
 
 type GRPCController interface {
@@ -24,7 +24,7 @@ func NewGRPCController(
 	validator validate.Validator,
 	interactor interactor,
 	presenter presenter,
-	logger *log.Entry,
+	logger log.Logger,
 ) *grpcController {
 	return &grpcController{
 		validator,
@@ -45,7 +45,7 @@ func (c *grpcController) Create(
 
 	errs := c.validator.ValidateStruct(input)
 	if errs != nil {
-		c.logger.Infof("input invalid: %v", errs)
+		c.logger.WithSpan(ctx).Infof("input invalid: %v", errs)
 		return nil, fmt.Errorf("%v", errs)
 	}
 
@@ -54,7 +54,7 @@ func (c *grpcController) Create(
 		input,
 	)
 	if err != nil {
-		c.logger.Warn(err)
+		c.logger.WithSpan(ctx).Error(err)
 		return nil, err
 	}
 

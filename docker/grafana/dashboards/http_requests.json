@@ -75,7 +75,7 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 7,
+        "w": 6,
         "x": 0,
         "y": 0
       },
@@ -94,7 +94,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "rate(request_duration_seconds_count{method=\"GET\",route=\"/user\",code=\"200\"}[1m])",
+          "expr": "rate(http_request_duration_seconds_count{method=\"GET\",route=\"/user\",code=\"200\"}[1m])",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -119,8 +119,8 @@
       "datasource": null,
       "gridPos": {
         "h": 7,
-        "w": 8,
-        "x": 7,
+        "w": 6,
+        "x": 6,
         "y": 0
       },
       "heatmap": {},
@@ -135,7 +135,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(rate(request_duration_seconds_bucket{method=\"GET\",route=\"/user\",code=\"200\"}[$__interval])) by (le)",
+          "expr": "sum(rate(http_request_duration_seconds_bucket{method=\"GET\",route=\"/user\",code=\"200\"}[$__interval])) by (le)",
           "format": "heatmap",
           "interval": "",
           "legendFormat": "{{le}}",
@@ -182,8 +182,8 @@
       "datasource": null,
       "gridPos": {
         "h": 7,
-        "w": 8,
-        "x": 15,
+        "w": 6,
+        "x": 12,
         "y": 0
       },
       "heatmap": {},
@@ -198,7 +198,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(rate(request_duration_seconds_bucket{method=\"GET\",route=\"/user\",code=\"500\"}[$__interval])) by (le)",
+          "expr": "sum(rate(http_request_duration_seconds_bucket{method=\"GET\",route=\"/user\",code=\"500\"}[$__interval])) by (le)",
           "format": "heatmap",
           "interval": "",
           "legendFormat": "{{le}}",
@@ -228,6 +228,117 @@
       "yBucketBound": "auto",
       "yBucketNumber": null,
       "yBucketSize": null
+    },
+    {
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "histogram_quantile(0.99,\n    sum(rate(\n        http_request_duration_seconds_bucket[1m]\n    )) by (le)\n)"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "hidden",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "histogram_quantile(0.99,\n    sum(rate(\n        http_request_duration_seconds_bucket[1m]\n    )) by (le)\n)",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "99th Percentile",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",
@@ -238,12 +349,12 @@
     "list": []
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-8m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Request duration",
+  "title": "HTTP GET /user",
   "uid": "gzDHg9W7z",
   "version": 1
 }

@@ -28,12 +28,18 @@ import (
 )
 
 func Test_E2E(t *testing.T) {
-	if err := os.Setenv("HTTP_PORT", "3001"); err != nil {
-		t.Error(err)
+	env := map[string]string{
+		"HTTP_PORT":          "3001",
+		"GRPC_PORT":          "1235",
+		"TRACING_ENABLED":    "false",
+		"LOGGING_PRODUCTION": "true",
+		"METRICS_ENABLED":    "false",
 	}
 
-	if err := os.Setenv("GRPC_PORT", "1235"); err != nil {
-		t.Error(err)
+	for k, v := range env {
+		if err := os.Setenv(k, v); err != nil {
+			t.Error(err)
+		}
 	}
 
 	testInMemory(t)

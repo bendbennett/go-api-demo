@@ -3,14 +3,14 @@ package read
 import (
 	"net/http"
 
+	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/response"
-	log "github.com/sirupsen/logrus"
 )
 
 type httpController struct {
 	interactor interactor
 	presenter  presenter
-	logger     *log.Entry
+	logger     log.Logger
 }
 
 type HTTPController interface {
@@ -20,7 +20,7 @@ type HTTPController interface {
 func NewHTTPController(
 	interactor interactor,
 	presenter presenter,
-	logger *log.Entry,
+	logger log.Logger,
 ) *httpController {
 	return &httpController{
 		interactor,
@@ -29,7 +29,7 @@ func NewHTTPController(
 	}
 }
 
-func (c *httpController) Create(
+func (c *httpController) Read(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -39,7 +39,7 @@ func (c *httpController) Create(
 		ctx,
 	)
 	if err != nil {
-		c.logger.Warn(err)
+		c.logger.WithSpan(ctx).Error(err)
 		response.Write500Response(w)
 		return
 	}

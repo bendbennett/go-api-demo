@@ -5,17 +5,22 @@ import (
 	"fmt"
 	"net"
 
-	"google.golang.org/grpc/reflection"
-
 	user "github.com/bendbennett/go-api-demo/generated"
-	log "github.com/sirupsen/logrus"
+	"github.com/bendbennett/go-api-demo/internal/log"
+	middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
+	promgrpc "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 type GRPCRouter struct {
-	userServer *userServer
-	logger     *log.Entry
-	port       int
+	userServer     *userServer
+	logger         log.Logger
+	metricsEnabled bool
+	tracingEnabled bool
+	port           int
 }
 
 type GRPCControllers struct {
@@ -27,7 +32,9 @@ type GRPCControllers struct {
 // populated with the port for the server and a logger.
 func NewGRPCRouter(
 	controllers GRPCControllers,
-	logger *log.Entry,
+	logger log.Logger,
+	metricEnabled bool,
+	tracingEnabled bool,
 	port int,
 ) *GRPCRouter {
 	return &GRPCRouter{
@@ -37,6 +44,8 @@ func NewGRPCRouter(
 			UserRead:                controllers.UserRead,
 		},
 		logger,
+		metricEnabled,
+		tracingEnabled,
 		port,
 	}
 }
@@ -76,14 +85,59 @@ func (r *GRPCRouter) Run(ctx context.Context) error {
 		),
 	)
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		r.logger.Panicf("failed to listen: %v", err)
 	}
 
-	s := grpc.NewServer()
+	var (
+		streamServerInterceptors []grpc.StreamServerInterceptor
+		unaryServerInterceptors  []grpc.UnaryServerInterceptor
+	)
+
+	if r.metricsEnabled {
+		streamServerInterceptors = append(
+			streamServerInterceptors,
+			promgrpc.StreamServerInterceptor,
+		)
+
+		unaryServerInterceptors = append(
+			unaryServerInterceptors,
+			promgrpc.UnaryServerInterceptor,
+		)
+	}
+
+	if r.tracingEnabled {
+		streamServerInterceptors = append(
+			streamServerInterceptors,
+			opentracing.StreamServerInterceptor(),
+		)
+
+		unaryServerInterceptors = append(
+			unaryServerInterceptors,
+			opentracing.UnaryServerInterceptor(),
+		)
+	}
+
+	serverOptions := []grpc.ServerOption{
+		grpc.StreamInterceptor(middleware.ChainStreamServer(streamServerInterceptors...)),
+		grpc.UnaryInterceptor(middleware.ChainUnaryServer(unaryServerInterceptors...)),
+	}
+
+	s := grpc.NewServer(serverOptions...)
 	user.RegisterUserServer(
 		s,
 		r.userServer,
 	)
+
+	if r.metricsEnabled {
+		promgrpc.EnableHandlingTimeHistogram(
+			func(opts *prometheus.HistogramOpts) {
+				opts.Name = "grpc_request_duration_seconds"
+				opts.Help = "A histogram of latencies for gRPC requests."
+				opts.Buckets = []float64{.001, .002, .005, .01, .02, .05, .1, .2, .5, 1, 2, 5}
+			},
+		)
+		promgrpc.Register(s)
+	}
 
 	reflection.Register(s)
 

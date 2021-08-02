@@ -4,13 +4,13 @@ import (
 	"context"
 
 	user "github.com/bendbennett/go-api-demo/generated"
-	log "github.com/sirupsen/logrus"
+	"github.com/bendbennett/go-api-demo/internal/log"
 )
 
 type grpcController struct {
 	interactor interactor
 	presenter  presenter
-	logger     *log.Entry
+	logger     log.Logger
 }
 
 type GRPCController interface {
@@ -20,7 +20,7 @@ type GRPCController interface {
 func NewGRPCController(
 	interactor interactor,
 	presenter presenter,
-	logger *log.Entry,
+	logger log.Logger,
 ) *grpcController {
 	return &grpcController{
 		interactor,
@@ -37,7 +37,7 @@ func (c *grpcController) Read(
 		ctx,
 	)
 	if err != nil {
-		c.logger.Warn(err)
+		c.logger.WithSpan(ctx).Error(err)
 		return nil, err
 	}
 
