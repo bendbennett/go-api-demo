@@ -1,0 +1,17 @@
+{
+  "name": "go-api-demo-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "go-api-demo-db",
+    "database.port": "3306",
+    "database.user": "root",
+    "database.password": "root",
+    "database.server.id": "100000",
+    "database.server.name": "go_api_demo_db",
+    "database.include.list": "go-api-demo",
+    "database.history.kafka.bootstrap.servers": "go-api-demo-kafka:9092",
+    "database.history.kafka.topic": "schema-changes.go-api-demo",
+    "database.allowPublicKeyRetrieval":"true"
+  }
+}

@@ -5,7 +5,7 @@ services:
     container_name: go-api-demo-db
     image: mysql:8
     ports:
-      - 3306:3306
+      - "3306:3306"
     environment:
       PS1: "\\u@\\h:\\w\\$$ "
       MYSQL_ROOT_PASSWORD: "root"
@@ -26,7 +26,7 @@ services:
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
     ports:
-      - 9090:9090
+      - "9090:9090"
     labels:
       org.label-schema.group: "monitoring"
 
@@ -39,11 +39,51 @@ services:
       - ../grafana/storage:/var/lib/grafana
       - ../grafana/dashboards:/var/lib/grafana/dashboards
     ports:
-      - 3456:3000
+      - "3456:3000"
 
   go-api-demo-jaeger:
     container_name: go-api-demo-jaeger
     image: jaegertracing/all-in-one:latest
     ports:
-      - 6831:6831/udp
-      - 16686:16686
+      - "6831:6831/udp"
+      - "16686:16686"
+
+  go-api-demo-zookeeper:
+    container_name: go-api-demo-zookeeper
+    image: debezium/zookeeper:1.6
+    ports:
+      - "2181:2181"
+      - "2888:2888"
+      - "3888:3888"
+
+  go-api-demo-kafka:
+    container_name: go-api-demo-kafka
+    image: debezium/kafka:1.6
+    ports:
+      - "9092:9092"
+    environment:
+      - ZOOKEEPER_CONNECT=go-api-demo-zookeeper:2181
+
+  go-api-demo-connect:
+    container_name: go-api-demo-connect
+    build:
+      context: ../../
+      dockerfile: docker/connect/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      - BOOTSTRAP_SERVERS=go-api-demo-kafka:9092
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=go_api_demo_configs
+      - OFFSET_STORAGE_TOPIC=go_api_demo_offsets
+      - STATUS_STORAGE_TOPIC=go_api_demo_statuses
+    depends_on:
+      - go-api-demo-db
+
+  go-api-demo-kowl:
+    container_name: go-api-demo-kowl
+    image: quay.io/cloudhut/kowl:master
+    ports:
+      - "8080:8080"
+    environment:
+      - KAFKA_BROKERS=go-api-demo-kafka:9092

@@ -7,10 +7,11 @@ This repo contains code for an API written in Go.
 To run the API you'll need to have Go installed.
 
 ### gRPC
+
 Install a _Protocol Buffer Compiler_, and the
 _Go Plugins_ for the compiler (see the
-[gRPC Quickstart](https://grpc.io/docs/languages/go/quickstart/) for details) if you 
-want to:
+[gRPC Quickstart](https://grpc.io/docs/languages/go/quickstart/) for details) if you want to:
+
 * compile the _.proto_ files by running `make proto` and/or
 * manually issue gRPC requests using [gRPCurl](https://github.com/fullstorydev/grpcurl).
 
@@ -24,6 +25,7 @@ The _Makefile_ contains commands for building, running and testing the API.
 * `make lint` runs golangci-lint.
 * `make proto` generates protobuf files from proto files.
 * `make test` runs the linter then the tests (see [Tests](#tests)).
+* `make migrate-up` runs the database migrations for MySQL (see [v0.3.0](#v0.3.0)).
 
 ### <a name="tests"></a>Tests
 
@@ -31,19 +33,47 @@ Install [testify](https://github.com/stretchr/testify#installation) then run `ma
 
 ### Manual Testing
 
-You can test the API manually using a client. For instance 
+You can test the API manually using a client. For instance
 [Insomnia](https://insomnia.rest/download)
-supports both HTTP and [gRPC](https://support.insomnia.rest/article/188-grpc#overview). 
+supports both HTTP and [gRPC](https://support.insomnia.rest/article/188-grpc#overview).
 
 Alternatively, requests can be issued using cURL and
-[gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0), 
+[gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0),
 [v0.3.0](#v0.3.0), [v0.4.0](#v0.4.0)).
+
+## v0.7.0
+
+Adds _Change Data Capture_ (CDC) using the
+[Debezium MySQL Connector](https://debezium.io/documentation/reference/1.6/connectors/mysql.html)
+to publish messages into Kafka when the underlying MySQL database is altered.
+
+### Set-up
+
+    make docker-up
+
+_Kowl_ (GUI for Kafka) is accessible at
+[http://localhost:8080/](http://localhost:8080/).
+
+### Kafka Topics & Messages
+
+Initially, 5 topics will be visible if the database migrations have not been previously run.
+
+![kowl_initial_topics](img/kowl_initial_topics.png)
+
+Additional topics will be visible following mutations of the database, for example, creation of users, either through:
+
+* `make test` or,
+* using the cURL and/or gRPCurl requests for create _user_ endpoints
+  (see [v0.2.0](#v0.2.0)).
+
+![kowl_users_migrations_topics](img/kowl_users_migrations_topics.png)
+
+![kowl_users_messages](img/kowl_users_messages.png)
 
 ## v0.6.0
 
-Adds tracing using [Jaeger](https://www.jaegertracing.io/) 
-(see [Quick Start](https://opentracing.io/guides/golang/quick-start/)) and further 
-metrics around gRPC requests.
+Adds tracing using [Jaeger](https://www.jaegertracing.io/)
+(see [Quick Start](https://opentracing.io/guides/golang/quick-start/)) and further metrics around gRPC requests.
 
 ### Set-up
 
@@ -53,12 +83,13 @@ _Jaeger_ is accessible at [http://localhost:16686](http://localhost:16686).
 
 ### Tracing
 
-#### Overview 
+#### Overview
 
 Using the cURL and/or gRPCurl requests for _user_ endpoints (see [v0.2.0](#v0.2.0),
 [v0.3.0](#v0.3.0) and [v0.4.0](#v0.4.0)) will generate traces.
 
 The following illustrates traces generated from:
+
 * gRPC request to /User/Read endpoint
 * HTTP request to GET /user endpoint
 * MySQL ping during application boot
@@ -67,9 +98,8 @@ The following illustrates traces generated from:
 
 #### Individual traces
 
-Drilling into the HTTP request reveals further information about where time is spent. 
-This particular request takes 5.16 ms, 4.15 ms (~80%) of which is consumed by the SQL 
-query.
+Drilling into the HTTP request reveals further information about where time is spent. This particular request takes 5.16
+ms, 4.15 ms (~80%) of which is consumed by the SQL query.
 
 ![jaeger_user_get_http_detail](img/jaeger_user_get_http_detail.png)
 
@@ -77,16 +107,14 @@ query.
 
 #### Slow Requests
 
-Running the _k6_ script (see [docker](#k6_docker) or [local](#k6_local)) reveals that as
-the number of requests increases the length of time spent trying to obtain a SQL 
-connection increases.
+Running the _k6_ script (see [docker](#k6_docker) or [local](#k6_local)) reveals that as the number of requests
+increases the length of time spent trying to obtain a SQL connection increases.
 
 ![jaeger_user_get_http_slow](img/jaeger_user_get_http_slow.png)
 
 #### Failures
 
-As the number of requests increases further failures are visible both in the logs and
-in the corresponding traces.
+As the number of requests increases further failures are visible both in the logs and in the corresponding traces.
 
 ##### Error - Too many connections
 
@@ -135,9 +163,9 @@ Adds metrics and dashboard visualisation for HTTP request duration, using
 _Prometheus_ is accessible at [http://localhost:9090](http://localhost:9090).
 
 _Grafana_ is accessible at [http://localhost:3456](http://localhost:3456)
+
 * The dashboard for requests can be found by using _Search_ and drilling into the
   _Requests_ folder.
-
 
 ### Metrics
 
@@ -146,16 +174,16 @@ will generate metrics.
 
 Raw metrics can be seen by running `curl localhost:3000/metrics`.
 
-Metrics are also visible in [Prometheus](http://localhost:9090) and HTTP request duration
-can be seen by searching for:
+Metrics are also visible in [Prometheus](http://localhost:9090) and HTTP request duration can be seen by searching for:
+
 * request_duration_seconds_bucket
 * request_duration_seconds_count
 * request_duration_seconds_sum
 
 ### Load Testing
 
-Running (see [docker](#k6_docker) or [local](#k6_local)) the [k6](https://k6.io/) script
-will generate meaningful output for the [Grafana](http://localhost:3456) dashboard.
+Running (see [docker](#k6_docker) or [local](#k6_local)) the [k6](https://k6.io/) script will generate meaningful output
+for the [Grafana](http://localhost:3456) dashboard.
 
 #### <a name="k6_docker"></a>Docker
 
@@ -169,12 +197,11 @@ will generate meaningful output for the [Grafana](http://localhost:3456) dashboa
 
 ### Dashboard
 
-Following is the output from running the _k6_ script which ramps up from 1-200 virtual
-users (vus) over 2 minutes, maintains 200 vus for 1 minute, then ramps down to 0 vus
-over 2 minutes.
+Following is the output from running the _k6_ script which ramps up from 1-200 virtual users (vus) over 2 minutes,
+maintains 200 vus for 1 minute, then ramps down to 0 vus over 2 minutes.
 
-The two load tests were run using either MySQL or in-memory data storage (see 
-[v0.3.0](#v0.3.0) for configuration).  
+The two load tests were run using either MySQL or in-memory data storage (see
+[v0.3.0](#v0.3.0) for configuration).
 
 #### MySQL
 
@@ -183,12 +210,11 @@ The two load tests were run using either MySQL or in-memory data storage (see
 08:55 - 09:00 marks the duration of the load test.
 
 Initially the number of requests per second (rps) increases as the number of vus rises,  
-and, an accompanying increase in the request duration can be seen in the heat map for 
-successful (200) requests. 
+and, an accompanying increase in the request duration can be seen in the heat map for successful (200) requests.
 
-The rps then decreases and more of the successful requests take longer, plateauing during
-the sustained load of 200 vus and is accompanied by the emergence of failed (500) 
-requests. 
+The rps then decreases and more of the successful requests take longer, plateauing during the sustained load of 200 vus
+and is accompanied by the emergence of failed (500)
+requests.
 
 ##### <a name="logs"></a>Logs
 
@@ -197,8 +223,7 @@ requests.
 {"commitHash":"e04cc2d0917ead700130dd378376a75a21c99930","level":"warning","msg":"Error 1040: Too many connections","time":"2021-07-30T08:58:04+01:00"}
 ```
 
-As the number of vus is ramped down, rps increases, successful request duration decreases
-and failed requests disappear.
+As the number of vus is ramped down, rps increases, successful request duration decreases and failed requests disappear.
 
 ##### k6 Output
 
@@ -242,12 +267,12 @@ default ✓ [======================================] 000/200 VUs  5m0s
 
 08:00 - 08:05 marks the duration of the load test.
 
-Initially the number of requests per second (rps) increases as the number of vus rises, 
-and, successful (200) request duration remains stable.
+Initially the number of requests per second (rps) increases as the number of vus rises, and, successful (200) request
+duration remains stable.
 
-The rps levels off with successful request duration remaining stable. 
+The rps levels off with successful request duration remaining stable.
 
-As the number of vus is ramped down, rps remains stable. There are no failed (500) 
+As the number of vus is ramped down, rps remains stable. There are no failed (500)
 requests during this load test.
 
 ##### k6 Output
@@ -290,6 +315,7 @@ default ✓ [======================================] 000/200 VUs  5m0s
 Adding HTTP and gRPC endpoints for retrieving users.
 
 ### HTTP
+
 #### Request
 
     curl -i --request GET \
@@ -359,17 +385,16 @@ You'll need to generate a protoset and have
 
 Stores created users either in-memory or in MySQL.
 
-To use MySQL storage you'll need to install 
-[golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate) and
-run the following commands:
+To use MySQL storage you'll need to install
+[golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate) and run the following commands:
 
     make docker-up
     make migrate-up
 
 Running `make docker-up` will
+
 * copy `.env.dist` => `.env`
-  * `USER_STORAGE` (either _memory_ or _sql_) determines whether users are stored 
-    in-memory or in MySQL.
+    * `USER_STORAGE` (either _memory_ or _sql_) determines whether users are stored in-memory or in MySQL.
 * start a docker-based instance of MySQL.
 
 Running `make migrate-up` creates the table in MySQL for storing users.
@@ -383,6 +408,7 @@ Adding HTTP and gRPC endpoints for user creation.
 Users are stored in-memory.
 
 ### HTTP
+
 #### Request
 
     curl -i --request POST \
@@ -409,7 +435,7 @@ Users are stored in-memory.
 
 ### gRPC
 
-You'll need to generate a protoset and have 
+You'll need to generate a protoset and have
 [gRPCurl](https://github.com/fullstorydev/grpcurl) installed.
 
 #### Generate protoset
@@ -441,6 +467,7 @@ You'll need to generate a protoset and have
 Basic HTTP and gRPC server.
 
 ### HTTP
+
 #### Request
 
     curl -i localhost:3000
