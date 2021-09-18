@@ -3,10 +3,13 @@ package bootstrap
 import (
 	"io"
 
+	"github.com/bendbennett/go-api-demo/internal/storage/redis"
+
 	"github.com/bendbennett/go-api-demo/internal/app"
 	"github.com/bendbennett/go-api-demo/internal/config"
 	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/routing"
+	userconsume "github.com/bendbennett/go-api-demo/internal/user/consume"
 	usercreate "github.com/bendbennett/go-api-demo/internal/user/create"
 	userread "github.com/bendbennett/go-api-demo/internal/user/read"
 	"github.com/bendbennett/go-api-demo/internal/validate"
@@ -53,6 +56,12 @@ func New() *app.App {
 	}
 	closers = addCloser(closers, closer)
 
+	userCache, closer, err := redis.NewUserCache(conf.Redis)
+	if err != nil {
+		logger.Panic(err)
+	}
+	closers = addCloser(closers, closer)
+
 	userCreatePresenter := usercreate.NewPresenter()
 
 	userCreateControllerHTTP := usercreate.NewHTTPController(
@@ -68,7 +77,7 @@ func New() *app.App {
 
 	userReadControllerHTTP := userread.NewHTTPController(
 		userread.NewInteractor(
-			userStorage,
+			userCache,
 		),
 		userReadPresenter,
 		logger,
@@ -98,7 +107,7 @@ func New() *app.App {
 
 	userReadControllerGRPC := userread.NewGRPCController(
 		userread.NewInteractor(
-			userStorage,
+			userCache,
 		),
 		userReadPresenter,
 		logger,
@@ -117,9 +126,22 @@ func New() *app.App {
 		conf.GRPCPort,
 	)
 
+	userProcessor := userconsume.NewProcessor(userCache)
+
+	userConsumer, closer, err := userconsume.NewConsumer(
+		conf.Kafka,
+		userProcessor,
+		logger,
+	)
+	if err != nil {
+		logger.Panic(err)
+	}
+	closers = addCloser(closers, closer)
+
 	return app.New(
 		httpRouter,
 		grpcRouter,
+		userConsumer,
 		closers,
 	)
 }

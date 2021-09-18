@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+
 	user "github.com/bendbennett/go-api-demo/generated"
 	"github.com/bendbennett/go-api-demo/internal/bootstrap"
 	"github.com/bendbennett/go-api-demo/internal/config"
@@ -29,11 +31,17 @@ import (
 
 func Test_E2E(t *testing.T) {
 	env := map[string]string{
-		"HTTP_PORT":          "3001",
-		"GRPC_PORT":          "1235",
-		"TRACING_ENABLED":    "false",
-		"LOGGING_PRODUCTION": "true",
-		"METRICS_ENABLED":    "false",
+		"HTTP_PORT":                              "3001",
+		"GRPC_PORT":                              "1235",
+		"TRACING_ENABLED":                        "false",
+		"LOGGING_PRODUCTION":                     "true",
+		"METRICS_ENABLED":                        "false",
+		"KAFKA_VERSION":                          "2.7.0",
+		"KAFKA_BROKERS":                          "localhost:9092",
+		"KAFKA_USER_CONSUMER_REBALANCE_STRATEGY": "sticky",
+		"KAFKA_USER_CONSUMER_GROUP_ID":           "user-consumer-group-id",
+		"KAFKA_USER_CONSUMER_TOPICS":             "go_api_demo_db.go-api-demo.users",
+		"KAFKA_USER_CONSUMER_IS_ENABLED":         "true",
 	}
 
 	for k, v := range env {
@@ -42,35 +50,7 @@ func Test_E2E(t *testing.T) {
 		}
 	}
 
-	testInMemory(t)
 	testSQL(t)
-}
-
-func testInMemory(t *testing.T) {
-	a := bootstrap.New()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	eg, egCtx := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		return a.Run(egCtx)
-	})
-
-	httpClient := newHTTPClient()
-	grpcClient := newGRPCClient()
-
-	// User - Create
-	userCreateHTTP(t, httpClient)
-	userCreateGRPC(t, grpcClient)
-
-	// User - Read
-	userReadHTTP(t, httpClient)
-	userReadGRPC(t, grpcClient)
-
-	cancel()
-	err := eg.Wait()
-	require.NoError(t, err)
 }
 
 func testSQL(t *testing.T) {
@@ -112,6 +92,18 @@ func testSQL(t *testing.T) {
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		t.Error(err)
 	}
+
+	rdb := redis.NewClient(
+		&redis.Options{
+			Addr: fmt.Sprintf("%s:%v",
+				config.GetEnvAsString("REDIS_HOST", "localhost"),
+				config.GetEnvAsInt("REDIS_PORT", 6379),
+			),
+			Password: config.GetEnvAsString("REDIS_PASSWORD", "pass"),
+		},
+	)
+
+	rdb.FlushAll(context.Background())
 
 	a := bootstrap.New()
 
@@ -282,24 +274,37 @@ func userCreateHTTP(t *testing.T, httpClient *httpClient) {
 }
 
 func userReadHTTP(t *testing.T, httpClient *httpClient) {
-	// Success
-	statusCode, body, err := httpClient.doRequest(httpRequest{
-		method: http.MethodGet,
-		url:    fmt.Sprintf("%v/user", httpClient.baseURL),
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, statusCode)
-
+	maxAttempts := 10
 	usersHTTP := usersHTTP{}
-	err = json.Unmarshal(body, &usersHTTP)
-	assert.NoError(t, err)
+
+	// Success
+	// We require a for loop here as the length of time it takes
+	// for the DB mutation events to be published into Kafka and
+	// processed is non-deterministic.
+	for i := 0; i < maxAttempts; i++ {
+		statusCode, body, err := httpClient.doRequest(httpRequest{
+			method: http.MethodGet,
+			url:    fmt.Sprintf("%v/user", httpClient.baseURL),
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, statusCode)
+
+		err = json.Unmarshal(body, &usersHTTP)
+		assert.NoError(t, err)
+
+		if len(usersHTTP) == 2 {
+			break
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	assert.Len(t, usersHTTP, 2)
 	assert.True(t, validate.IsUUID(usersHTTP[0].ID))
 	assert.NotEmpty(t, usersHTTP[0].FirstName)
 	assert.NotEmpty(t, usersHTTP[0].LastName)
-	_, err = time.Parse(time.RFC3339, usersHTTP[0].CreatedAt)
+	_, err := time.Parse(time.RFC3339, usersHTTP[0].CreatedAt)
 	assert.NoError(t, err)
 	assert.True(t, validate.IsUUID(usersHTTP[1].ID))
 	assert.NotEmpty(t, usersHTTP[1].FirstName)
@@ -374,13 +379,30 @@ func userCreateGRPC(t *testing.T, grpcClient *grpcClient) {
 }
 
 func userReadGRPC(t *testing.T, grpcClient *grpcClient) {
-	// Success
-	usersGRPC, err := grpcClient.userClient.Read(
-		context.Background(),
-		&user.ReadRequest{},
-	)
+	maxAttempts := 10
+	usersGRPC := &user.UsersResponse{}
 
-	assert.NoError(t, err)
+	// Success
+	// We require a for loop here as the length of time it takes
+	// for the DB mutation events to be published into Kafka and
+	// processed is non-deterministic.
+	for i := 0; i < maxAttempts; i++ {
+		var err error
+
+		usersGRPC, err = grpcClient.userClient.Read(
+			context.Background(),
+			&user.ReadRequest{},
+		)
+
+		assert.NoError(t, err)
+
+		if len(usersGRPC.Users) == 2 {
+			break
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
 	assert.Len(t, usersGRPC.Users, 2)
 
 	assert.True(t, validate.IsUUID(usersGRPC.Users[0].Id))

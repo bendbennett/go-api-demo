@@ -1,6 +1,7 @@
 SERVICE_NAME=go-api-demo
 MYSQL_DSN=mysql://user:password@tcp(127.0.0.1:3306)/go-api-demo
 MYSQL_MIGRATION_PATH=internal/storage/mysql/migrations
+export HOST_IP=${shell ipconfig getifaddr en0}
 
 ################################################################################
 

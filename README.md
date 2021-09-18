@@ -41,11 +41,120 @@ Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0),
 [v0.3.0](#v0.3.0), [v0.4.0](#v0.4.0)).
 
+## v0.8.0
+
+Adds a consumer which populates Redis by processing the Kafka events that are generated
+by _Change Data Capture_ (CDC) when the MySQL _users_ table is mutated.
+
+These changes are an implementation of event sourced CQRS, in that requests sent via
+HTTP or gRPC to create users mutate the users table in MySQL. These mutations are 
+detected by CDC and result in events being published into Kafka. Consumer(s) process
+the Kafka events and create key-value entries in Redis. Requests to get users via HTTP
+or gRPC then retrieve users from Redis.
+
+### Set-up
+
+    make docker-up
+    make run
+
+### Load Testing
+
+Following is the output from running the _k6_ script which ramps up from 1-200 virtual users (vus) over 2 minutes,
+maintains 200 vus for 1 minute, then ramps down to 0 vus over 2 minutes.
+
+The two load tests were run using either Redis or MySQL data storage as [described 
+previously](#load_testing).
+
+#### Redis
+
+![user_get_redis](img/user_get_redis.png)
+
+16:40 - 16:45 marks the duration of the load test.
+
+##### k6 Output
+
+```
+  execution: local
+     script: k6/get.js
+     output: -
+
+  scenarios: (100.00%) 1 scenario, 200 max VUs, 5m30s max duration (incl. graceful stop):
+           * default: Up to 200 looping VUs for 5m0s over 3 stages (gracefulRampDown: 30s, gracefulStop: 30s)
+
+
+running (5m00.0s), 000/200 VUs, 530316 complete and 0 interrupted iterations
+default ✓ [======================================] 000/200 VUs  5m0s
+
+     ✓ status was 200
+
+     checks.........................: 100.00% ✓ 530316      ✗ 0     
+     data_received..................: 196 MB  654 kB/s
+     data_sent......................: 45 MB   149 kB/s
+     http_req_blocked...............: avg=3.91µs  min=1µs    med=3µs     max=2.54ms  p(90)=5µs      p(95)=6µs     
+     http_req_connecting............: avg=133ns   min=0s     med=0s      max=1.33ms  p(90)=0s       p(95)=0s      
+     http_req_duration..............: avg=67.85ms min=2.53ms med=69.18ms max=1.03s   p(90)=109.67ms p(95)=121.53ms
+       { expected_response:true }...: avg=67.85ms min=2.53ms med=69.18ms max=1.03s   p(90)=109.67ms p(95)=121.53ms
+     http_req_failed................: 0.00%   ✓ 0           ✗ 530316
+     http_req_receiving.............: avg=51.82µs min=13µs   med=39µs    max=9.58ms  p(90)=80µs     p(95)=106µs   
+     http_req_sending...............: avg=18.24µs min=5µs    med=14µs    max=20.29ms p(90)=26µs     p(95)=36µs    
+     http_req_tls_handshaking.......: avg=0s      min=0s     med=0s      max=0s      p(90)=0s       p(95)=0s      
+     http_req_waiting...............: avg=67.78ms min=2.49ms med=69.12ms max=1.03s   p(90)=109.59ms p(95)=121.46ms
+     http_reqs......................: 530316  1767.762898/s
+     iteration_duration.............: avg=67.99ms min=2.64ms med=69.32ms max=1.03s   p(90)=109.81ms p(95)=121.68ms
+     iterations.....................: 530316  1767.762898/s
+     vus............................: 1       min=1         max=200 
+     vus_max........................: 200     min=200       max=200 
+
+```
+
+#### MySQL
+
+![user_get_mysql_2](img/user_get_mysql_2.png)
+
+17:10 - 17:15 marks the duration of the load test.
+
+##### k6 Output
+
+```
+  execution: local
+     script: k6/get.js
+     output: -
+
+  scenarios: (100.00%) 1 scenario, 200 max VUs, 5m30s max duration (incl. graceful stop):
+           * default: Up to 200 looping VUs for 5m0s over 3 stages (gracefulRampDown: 30s, gracefulStop: 30s)
+
+
+running (5m00.0s), 000/200 VUs, 230462 complete and 0 interrupted iterations
+default ✓ [======================================] 000/200 VUs  5m0s
+
+     ✗ status was 200
+      ↳  95% — ✓ 220630 / ✗ 9832
+
+     checks.........................: 95.73% ✓ 220630    ✗ 9832  
+     data_received..................: 81 MB  270 kB/s
+     data_sent......................: 19 MB  65 kB/s
+     http_req_blocked...............: avg=84.71µs  min=1µs    med=3µs     max=1.07s   p(90)=5µs      p(95)=6µs     
+     http_req_connecting............: avg=80.97µs  min=0s     med=0s      max=1.07s   p(90)=0s       p(95)=0s      
+     http_req_duration..............: avg=156.47ms min=1.03ms med=27.59ms max=3s      p(90)=499.14ms p(95)=819.25ms
+       { expected_response:true }...: avg=148.03ms min=1.03ms med=24.72ms max=2.83s   p(90)=473.49ms p(95)=789.24ms
+     http_req_failed................: 4.26%  ✓ 9832      ✗ 220630
+     http_req_receiving.............: avg=52.43µs  min=13µs   med=43µs    max=12.94ms p(90)=81µs     p(95)=103µs   
+     http_req_sending...............: avg=18.74µs  min=5µs    med=15µs    max=21.92ms p(90)=26µs     p(95)=34µs    
+     http_req_tls_handshaking.......: avg=0s       min=0s     med=0s      max=0s      p(90)=0s       p(95)=0s      
+     http_req_waiting...............: avg=156.4ms  min=953µs  med=27.51ms max=3s      p(90)=499.07ms p(95)=819.22ms
+     http_reqs......................: 230462 768.22389/s
+     iteration_duration.............: avg=156.69ms min=1.12ms med=27.74ms max=3s      p(90)=499.67ms p(95)=819.84ms
+     iterations.....................: 230462 768.22389/s
+     vus............................: 1      min=1       max=200 
+     vus_max........................: 200    min=200     max=200 
+
+```
+
 ## v0.7.0
 
 Adds _Change Data Capture_ (CDC) using the
 [Debezium MySQL Connector](https://debezium.io/documentation/reference/1.6/connectors/mysql.html)
-to publish messages into Kafka when the underlying MySQL database is altered.
+to publish messages into Kafka when the underlying MySQL database is mutated.
 
 ### Set-up
 
@@ -180,7 +289,7 @@ Metrics are also visible in [Prometheus](http://localhost:9090) and HTTP request
 * request_duration_seconds_count
 * request_duration_seconds_sum
 
-### Load Testing
+### <a name="load_testing"></a>Load Testing
 
 Running (see [docker](#k6_docker) or [local](#k6_local)) the [k6](https://k6.io/) script will generate meaningful output
 for the [Grafana](http://localhost:3456) dashboard.
@@ -195,7 +304,7 @@ for the [Grafana](http://localhost:3456) dashboard.
 
     k6 run -e HOST=localhost k6/get.js
 
-### Dashboard
+### <a name="load_testing"></a>Dashboard
 
 Following is the output from running the _k6_ script which ramps up from 1-200 virtual users (vus) over 2 minutes,
 maintains 200 vus for 1 minute, then ramps down to 0 vus over 2 minutes.

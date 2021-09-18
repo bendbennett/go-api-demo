@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/Shopify/sarama"
+	"github.com/go-redis/redis/v8"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
@@ -16,6 +19,8 @@ const StorageTypeSQL = "sql"
 type Config struct {
 	MySQL    *mysql.Config
 	Storage  Storage
+	Redis    redis.Options
+	Kafka    Kafka
 	Metrics  Metrics
 	Tracing  Tracing
 	Logging  Logging
@@ -40,11 +45,44 @@ type Logging struct {
 	Production bool
 }
 
+type Message struct {
+}
+
+type Kafka struct {
+	Brokers      []string
+	UserConsumer KafkaConsumer
+	Version      sarama.KafkaVersion
+}
+
+type KafkaConsumer struct {
+	GroupRebalanceStrategy sarama.BalanceStrategy
+	GroupID                string
+	Topics                 []string
+	IsEnabled              bool
+}
+
 // New returns a populated Config struct with values
 // retrieved from environment variables or default
 // values if the env vars do not exist.
 func New() Config {
 	_ = godotenv.Load()
+
+	kafkaVersion, err := sarama.ParseKafkaVersion(
+		GetEnvAsString(
+			"KAFKA_VERSION",
+			"",
+		),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	userConsumerGroupRebalanceStrategy := parseKafkaConsumerGroupRebalanceStrategy(
+		GetEnvAsString(
+			"KAFKA_USER_CONSUMER_REBALANCE_STRATEGY",
+			"",
+		),
+	)
 
 	return Config{
 		MySQL: &mysql.Config{
@@ -103,6 +141,30 @@ func New() Config {
 				false,
 			),
 		},
+		Kafka: Kafka{
+			Version: kafkaVersion,
+			Brokers: GetEnvAsSliceOfStrings(
+				"KAFKA_BROKERS",
+				",",
+				[]string{},
+			),
+			UserConsumer: KafkaConsumer{
+				GroupRebalanceStrategy: userConsumerGroupRebalanceStrategy,
+				GroupID: GetEnvAsString(
+					"KAFKA_USER_CONSUMER_GROUP_ID",
+					"",
+				),
+				Topics: GetEnvAsSliceOfStrings(
+					"KAFKA_USER_CONSUMER_TOPICS",
+					",",
+					[]string{},
+				),
+				IsEnabled: GetEnvAsBool(
+					"KAFKA_USER_CONSUMER_IS_ENABLED",
+					false,
+				),
+			},
+		},
 		HTTPPort: GetEnvAsInt(
 			"HTTP_PORT",
 			3000,
@@ -111,6 +173,22 @@ func New() Config {
 			"GRPC_PORT",
 			1234,
 		),
+		Redis: redis.Options{
+			Addr: fmt.Sprintf("%s:%v",
+				GetEnvAsString(
+					"REDIS_HOST",
+					"localhost",
+				),
+				GetEnvAsInt(
+					"REDIS_PORT",
+					6379,
+				),
+			),
+			Password: GetEnvAsString(
+				"REDIS_PASSWORD",
+				"pass",
+			),
+		},
 	}
 }
 
@@ -155,4 +233,25 @@ func GetEnvAsBool(
 	}
 
 	return defaultVal
+}
+
+func GetEnvAsSliceOfStrings(
+	key string,
+	separator string,
+	defaultVal []string,
+) []string {
+	if val, ok := os.LookupEnv(key); ok {
+		return strings.Split(val, separator)
+	}
+
+	return defaultVal
+}
+
+func parseKafkaConsumerGroupRebalanceStrategy(strategy string) sarama.BalanceStrategy {
+	switch strategy {
+	case sarama.StickyBalanceStrategyName:
+		return sarama.BalanceStrategySticky
+	default:
+		panic("consumer group rebalance strategy is unrecognised")
+	}
 }
