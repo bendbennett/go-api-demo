@@ -23,7 +23,7 @@ type UserCache struct {
 	cache cache
 }
 
-func NewUserCache(conf redis.Options) (user.CommandQuery, io.Closer, error) {
+func NewUserCache(conf redis.Options) (*UserCache, io.Closer, error) {
 	rdb := redis.NewClient(
 		&redis.Options{
 			Addr:     conf.Addr,

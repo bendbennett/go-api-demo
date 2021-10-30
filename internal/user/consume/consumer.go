@@ -1,7 +1,6 @@
 package consume
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"time"
@@ -14,32 +13,28 @@ import (
 	"github.com/bendbennett/go-api-demo/internal/user"
 )
 
-type userProcessor interface {
-	Process(context.Context, inputData) error
-}
-
 // Consumer represents a Sarama consumer group consumer
 type userConsumer struct {
-	userProcessor userProcessor
-	log           log.Logger
+	processor Processor
+	log       log.Logger
 }
 
 func NewConsumer(
 	confKafka config.Kafka,
-	userProcessor userProcessor,
+	confUserConsumer config.KafkaConsumer,
+	processor Processor,
 	log log.Logger,
 ) (consume.Run, io.Closer, error) {
-	if !confKafka.UserConsumer.IsEnabled {
+	if !confUserConsumer.IsEnabled {
 		return &consume.CCGNoop{}, nil, nil
 	}
 
 	userConfig := sarama.NewConfig()
 	userConfig.Version = confKafka.Version
-	userConfig.Consumer.Group.Rebalance.Strategy = confKafka.UserConsumer.GroupRebalanceStrategy
 
 	cg, err := sarama.NewConsumerGroup(
 		confKafka.Brokers,
-		confKafka.UserConsumer.GroupID,
+		confUserConsumer.GroupID,
 		userConfig,
 	)
 	if err != nil {
@@ -48,11 +43,11 @@ func NewConsumer(
 
 	return &consume.CCG{
 		Consumer: &userConsumer{
-			userProcessor,
+			processor,
 			log,
 		},
 		ConsumerGroup: cg,
-		Topics:        confKafka.UserConsumer.Topics,
+		Topics:        confUserConsumer.Topics,
 	}, cg, nil
 }
 
@@ -87,7 +82,7 @@ func (uc *userConsumer) ConsumeClaim(
 			continue
 		}
 
-		err = uc.userProcessor.Process(session.Context(), userBeforeAfter)
+		err = uc.processor.Process(session.Context(), userBeforeAfter)
 		if err != nil {
 			uc.log.Error(err)
 			continue

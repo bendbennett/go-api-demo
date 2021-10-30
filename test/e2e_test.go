@@ -9,8 +9,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/elastic/go-elasticsearch/v7/esapi"
+	"github.com/joho/godotenv"
 
 	"github.com/go-redis/redis/v8"
 
@@ -22,7 +27,6 @@ import (
 	"github.com/golang-migrate/migrate"
 	migratemysql "github.com/golang-migrate/migrate/database/mysql"
 	_ "github.com/golang-migrate/migrate/source/file"
-	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -30,18 +34,46 @@ import (
 )
 
 func Test_E2E(t *testing.T) {
+	env(t)
+	purge(t)
+
+	a := bootstrap.New()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		return a.Run(egCtx)
+	})
+
+	httpClient := newHTTPClient()
+	grpcClient := newGRPCClient()
+
+	// User - Create
+	userCreateHTTP(t, httpClient)
+	userCreateGRPC(t, grpcClient)
+
+	// User - Read
+	userReadHTTP(t, httpClient)
+	userReadGRPC(t, grpcClient)
+
+	// User - Search
+	userSearchHTTP(t, httpClient)
+	userSearchGRPC(t, grpcClient)
+
+	cancel()
+	err := eg.Wait()
+	require.NoError(t, err)
+}
+
+func env(t *testing.T) {
 	env := map[string]string{
-		"HTTP_PORT":                              "3001",
-		"GRPC_PORT":                              "1235",
-		"TRACING_ENABLED":                        "false",
-		"LOGGING_PRODUCTION":                     "true",
-		"METRICS_ENABLED":                        "false",
-		"KAFKA_VERSION":                          "2.7.0",
-		"KAFKA_BROKERS":                          "localhost:9092",
-		"KAFKA_USER_CONSUMER_REBALANCE_STRATEGY": "sticky",
-		"KAFKA_USER_CONSUMER_GROUP_ID":           "user-consumer-group-id",
-		"KAFKA_USER_CONSUMER_TOPICS":             "go_api_demo_db.go-api-demo.users",
-		"KAFKA_USER_CONSUMER_IS_ENABLED":         "true",
+		"HTTP_PORT":          "3001",
+		"GRPC_PORT":          "1235",
+		"TRACING_ENABLED":    "false",
+		"LOGGING_PRODUCTION": "true",
+		"METRICS_ENABLED":    "false",
 	}
 
 	for k, v := range env {
@@ -50,12 +82,11 @@ func Test_E2E(t *testing.T) {
 		}
 	}
 
-	testSQL(t)
+	_ = godotenv.Load("../.env")
 }
 
-func testSQL(t *testing.T) {
-	_ = godotenv.Load("../.env")
-
+// nolint: gocyclo
+func purge(t *testing.T) {
 	db, err := sql.Open(
 		"mysql",
 		fmt.Sprintf(
@@ -105,30 +136,66 @@ func testSQL(t *testing.T) {
 
 	rdb.FlushAll(context.Background())
 
-	a := bootstrap.New()
+	for {
+		cmd := rdb.Keys(context.Background(), "*")
+		keys, err := cmd.Result()
+		if err != nil {
+			t.Error(err)
+		}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+		if len(keys) == 0 {
+			break
+		}
 
-	eg, egCtx := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		return a.Run(egCtx)
-	})
+		t.Log("waiting for redis flush to complete......")
+		time.Sleep(10 * time.Millisecond)
+	}
 
-	httpClient := newHTTPClient()
-	grpcClient := newGRPCClient()
+	es, err := elasticsearch.NewClient(
+		elasticsearch.Config{
+			Addresses: config.GetEnvAsSliceOfStrings(
+				"ELASTICSEARCH_ADDRESSES",
+				",",
+				[]string{"http://localhost:9200"}),
+		})
+	if err != nil {
+		t.Error(err)
+	}
 
-	// User - Create
-	userCreateHTTP(t, httpClient)
-	userCreateGRPC(t, grpcClient)
+	for {
+		deleteReq := esapi.DeleteByQueryRequest{
+			Index: []string{"users"},
+			Body:  strings.NewReader(`{"query": {"match_all": {}}}`),
+		}
 
-	// User - Read
-	userReadHTTP(t, httpClient)
-	userReadGRPC(t, grpcClient)
+		_, err = deleteReq.Do(context.Background(), es)
+		if err != nil {
+			t.Error(err)
+		}
 
-	cancel()
-	err = eg.Wait()
-	require.NoError(t, err)
+		searchReq := esapi.SearchRequest{
+			Index: []string{"users"},
+			Body:  strings.NewReader(`{"query": {"match_all": {}}}`),
+		}
+
+		resp, err := searchReq.Do(context.Background(), es)
+		if err != nil {
+			t.Error(err)
+		}
+
+		var r map[string]interface{}
+
+		if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+			t.Error(err)
+		}
+
+		if int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)) == 0 {
+			break
+		}
+
+		t.Log("waiting for elasticsearch delete users to complete......")
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 type httpClient struct {
@@ -274,7 +341,7 @@ func userCreateHTTP(t *testing.T, httpClient *httpClient) {
 }
 
 func userReadHTTP(t *testing.T, httpClient *httpClient) {
-	maxAttempts := 10
+	maxAttempts := 500
 	usersHTTP := usersHTTP{}
 
 	// Success
@@ -297,7 +364,47 @@ func userReadHTTP(t *testing.T, httpClient *httpClient) {
 			break
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	assert.Len(t, usersHTTP, 2)
+	assert.True(t, validate.IsUUID(usersHTTP[0].ID))
+	assert.NotEmpty(t, usersHTTP[0].FirstName)
+	assert.NotEmpty(t, usersHTTP[0].LastName)
+	_, err := time.Parse(time.RFC3339, usersHTTP[0].CreatedAt)
+	assert.NoError(t, err)
+	assert.True(t, validate.IsUUID(usersHTTP[1].ID))
+	assert.NotEmpty(t, usersHTTP[1].FirstName)
+	assert.NotEmpty(t, usersHTTP[1].LastName)
+	_, err = time.Parse(time.RFC3339, usersHTTP[1].CreatedAt)
+	assert.NoError(t, err)
+}
+
+func userSearchHTTP(t *testing.T, httpClient *httpClient) {
+	maxAttempts := 500
+	usersHTTP := usersHTTP{}
+
+	// Success
+	// We require a for loop here as the length of time it takes
+	// for the DB mutation events to be published into Kafka and
+	// processed is non-deterministic.
+	for i := 0; i < maxAttempts; i++ {
+		statusCode, body, err := httpClient.doRequest(httpRequest{
+			method: http.MethodGet,
+			url:    fmt.Sprintf("%v/user/search/smith", httpClient.baseURL),
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, statusCode)
+
+		err = json.Unmarshal(body, &usersHTTP)
+		assert.NoError(t, err)
+
+		if len(usersHTTP) == 2 {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	assert.Len(t, usersHTTP, 2)
@@ -379,7 +486,7 @@ func userCreateGRPC(t *testing.T, grpcClient *grpcClient) {
 }
 
 func userReadGRPC(t *testing.T, grpcClient *grpcClient) {
-	maxAttempts := 10
+	maxAttempts := 500
 	usersGRPC := &user.UsersResponse{}
 
 	// Success
@@ -400,7 +507,49 @@ func userReadGRPC(t *testing.T, grpcClient *grpcClient) {
 			break
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	assert.Len(t, usersGRPC.Users, 2)
+
+	assert.True(t, validate.IsUUID(usersGRPC.Users[0].Id))
+	assert.NotEmpty(t, usersGRPC.Users[0].FirstName)
+	assert.NotEmpty(t, usersGRPC.Users[0].LastName)
+	createdAt, err := time.Parse(time.RFC3339, usersGRPC.Users[0].CreatedAt)
+	assert.NoError(t, err)
+	assert.True(t, !createdAt.IsZero())
+
+	assert.True(t, validate.IsUUID(usersGRPC.Users[1].Id))
+	assert.NotEmpty(t, usersGRPC.Users[1].FirstName)
+	assert.NotEmpty(t, usersGRPC.Users[1].LastName)
+	createdAt, err = time.Parse(time.RFC3339, usersGRPC.Users[1].CreatedAt)
+	assert.NoError(t, err)
+	assert.True(t, !createdAt.IsZero())
+}
+
+func userSearchGRPC(t *testing.T, grpcClient *grpcClient) {
+	maxAttempts := 500
+	usersGRPC := &user.UsersResponse{}
+
+	// Success
+	// We require a for loop here as the length of time it takes
+	// for the DB mutation events to be published into Kafka and
+	// processed is non-deterministic.
+	for i := 0; i < maxAttempts; i++ {
+		var err error
+
+		usersGRPC, err = grpcClient.userClient.Search(
+			context.Background(),
+			&user.SearchRequest{SearchTerm: "smith"},
+		)
+
+		assert.NoError(t, err)
+
+		if len(usersGRPC.Users) == 2 {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	assert.Len(t, usersGRPC.Users, 2)

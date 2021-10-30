@@ -23,6 +23,7 @@ type HTTPRouter struct {
 type HTTPControllers struct {
 	UserCreateController func(w http.ResponseWriter, r *http.Request)
 	UserReadController   func(w http.ResponseWriter, r *http.Request)
+	UserSearchController func(w http.ResponseWriter, r *http.Request)
 }
 
 type HTTPPromVec struct {
@@ -68,6 +69,11 @@ func NewHTTPRouter(
 		{
 			path:    "/user",
 			handler: controllers.UserReadController,
+			method:  http.MethodGet,
+		},
+		{
+			path:    "/user/search/{searchTerm}",
+			handler: controllers.UserSearchController,
 			method:  http.MethodGet,
 		},
 	}

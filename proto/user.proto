@@ -20,7 +20,12 @@ message UsersResponse {
   repeated UserResponse users = 1;
 }
 
+message SearchRequest{
+  string searchTerm = 1;
+}
+
 service User {
   rpc Create(CreateRequest) returns (UserResponse) {}
   rpc Read(ReadRequest) returns (UsersResponse) {}
+  rpc Search(SearchRequest) returns (UsersResponse) {}
 }

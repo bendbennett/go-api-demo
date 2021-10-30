@@ -1,7 +1,7 @@
 #!/bin/bash
 
 bash -c '
-hostname=$(hostname -I | awk "{gsub(/ /,\"\"); print $1}")
+hostname=$(awk '"'END{print $1}'"' /etc/hosts)
 text_break="\n=============\n"
 
 echo -e "\n${text_break}Waiting for Kafka Connect to start listening on ${hostname}${text_break}"

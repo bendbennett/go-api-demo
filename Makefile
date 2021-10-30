@@ -45,6 +45,14 @@ run: build
 test: lint
 	go test -v -race -bench=./... -benchmem -timeout=120s -cover -coverprofile=./test/coverage.txt ./...
 
+.PHONY: test-unit
+test-unit: lint
+	go test -v -race -bench=./... -benchmem -timeout=120s -cover -coverprofile=./test/coverage.txt `go list ./... | grep -v test`
+
+.PHONY: test-e2e
+test-e2e: lint
+	go test -v -race -bench=./... -benchmem -timeout=120s -cover -coverprofile=./test/coverage.txt `go list ./... | grep test`
+
 .PHONY: .env
 .env:
 ifeq (,$(wildcard .env))

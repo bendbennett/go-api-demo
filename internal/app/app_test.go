@@ -29,9 +29,9 @@ func TestRun_NoError(t *testing.T) {
 	defer cancelFunc()
 
 	a := New(
-		&okComponent{},
-		&okComponent{},
-		&okComponent{},
+		[]Component{
+			&okComponent{},
+		},
 		[]io.Closer{})
 
 	go func() {
@@ -48,9 +48,9 @@ func TestRun_Error(t *testing.T) {
 	defer cancelFunc()
 
 	a := New(
-		&errorComponent{},
-		&okComponent{},
-		&okComponent{},
+		[]Component{
+			&errorComponent{},
+		},
 		[]io.Closer{})
 
 	err := a.Run(ctx)

@@ -4,7 +4,34 @@ This repo contains code for an API written in Go.
 
 ## Overview
 
-To run the API you'll need to have Go installed.
+The API is a Go implementation of
+[Clean Architecture](https://www.oreilly.com/library/view/clean-architecture-a/9780134494272/).
+
+Stress testing is combined with the usage of metrics and tracing to compare the performance and
+behaviour when using an API backed with either an in-memory or relational data storage.
+
+[Change Data Capture](https://martin.kleppmann.com/2015/06/02/change-capture-at-berlin-buzzwords.html) (CDC)
+is used as a basis for event-driven cache and search engine population whilst avoiding the problem of 
+[dual writes](https://www.confluent.io/blog/using-logs-to-build-a-solid-data-infrastructure-or-why-dual-writes-are-a-bad-idea/).
+
+### Tags
+
+| Tag | Implementation | 
+| --- | --- |
+| [v0.1.0](#v0.1.0) | Basic HTTP and gRPC server exposing hello world endpoints. |
+| [v0.2.0](#v0.2.0) | Adds HTTP and gRPC endpoints to create users stored in-memory. |
+| [v0.3.0](#v0.3.0) | Stores created users either in-memory or in MySQL. |
+| [v0.4.0](#v0.4.0) | Adds HTTP and gRPC endpoints to retrieve/read users. |
+| [v0.5.0](#v0.5.0) | <ul><li>Adds Prometheus metrics and Grafana dashboard visualisation for HTTP requests.</li><li>Includes k6 script to stress-test HTTP requests to retrieve/read users and provides a comparison of retrieving users from in-memory storage and MySQL.</li></ul>    
+| [v0.6.0](#v0.6.0) | <ul><li>Adds tracing with Jaeger to provide additional insight into slow request processing and errors observed when stress testing HTTP requests to retrieve/read users.</li><li>Adds metrics for gRPC requests.</li></ul>
+| [v0.7.0](#v0.7.0) | Adds Change Data Capture to publish events into Kafka when MySQL is mutated.  
+| [v0.8.0](#v0.8.0) | <ul><li>Adds a Kafka consumer which populates Redis by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Includes stress-testing of HTTP requests to retrieve/read users, comparing performance of retrieving users from Redis and MySQL.</li></ul> |
+| [v0.9.0](#v0.9.0) | <ul><li>Adds a Kafka consumer which populates Elasticsearch by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Adds HTTP and gRPC endpoints for searching users by name.</li></ul> |
+
+### Set-up
+
+To run the API you'll need to have [Go](https://golang.org/doc/install) and 
+[Docker](https://docs.docker.com/get-docker/) installed.
 
 ### gRPC
 
@@ -29,7 +56,12 @@ The _Makefile_ contains commands for building, running and testing the API.
 
 ### <a name="tests"></a>Tests
 
-Install [testify](https://github.com/stretchr/testify#installation) then run `make test`.
+Install [testify](https://github.com/stretchr/testify#installation) then run 
+
+```
+make docker-up
+make test
+```
 
 ### Manual Testing
 
@@ -41,7 +73,88 @@ Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0),
 [v0.3.0](#v0.3.0), [v0.4.0](#v0.4.0)).
 
-## v0.8.0
+## <a name="v0.9.0"></a>v0.9.0
+
+Adds a consumer which populates Elasticsearch by processing the Kafka events that are generated
+by _Change Data Capture_ (CDC) when the MySQL _users_ table is mutated.
+
+Adds HTTP and gRPC endpoints for searching users by name.
+
+### Set-up
+
+    make docker-up
+    make run
+    make test
+
+### HTTP
+
+#### Request
+
+    curl -i --request GET \
+    --url http://localhost:3000/user/search/ith
+
+##### Response
+
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    Date: Mon, 08 Nov 2021 18:14:08 GMT
+    Content-Length: 261
+
+    [
+      {
+        "id":"39965d61-01f2-4d6d-8215-4bb88ef2a837",
+        "first_name":"john",
+        "last_name":"smith",
+        "created_at":"2021-07-26T19:23:52Z"
+      },
+      {
+        "id":"c0e137e3-6689-41c3-a421-0bf44f44d746",
+        "first_name":"joanna",
+        "last_name":"smithson",
+        "created_at":"2021-07-26T19:23:52Z"
+      }
+    ]
+
+### gRPC
+
+You'll need to generate a protoset and have
+[gRPCurl](https://github.com/fullstorydev/grpcurl) installed.
+
+#### Generate protoset
+
+    protoc \
+    -I=proto \
+    --descriptor_set_out=generated/user.protoset \
+    user.proto
+
+#### Request
+
+    grpcurl \
+    -plaintext \
+    -protoset generated/user.protoset \
+    -d '{"searchTerm": "ith"}' \
+    localhost:1234 User/Search
+
+#### Response
+
+    {
+      "users": [
+        {
+          "id": "39965d61-01f2-4d6d-8215-4bb88ef2a837",
+          "firstName": "john",
+          "lastName": "smith",
+          "createdAt": "2021-07-26T19:23:52Z"
+        },
+        {
+          "id": "c0e137e3-6689-41c3-a421-0bf44f44d746",
+          "firstName": "joanna",
+          "lastName": "smithson",
+          "createdAt": "2021-07-26T19:23:52Z"
+        }
+      ]
+    }
+
+## <a name="v0.8.0"></a>v0.8.0
 
 Adds a consumer which populates Redis by processing the Kafka events that are generated
 by _Change Data Capture_ (CDC) when the MySQL _users_ table is mutated.
@@ -150,10 +263,10 @@ default ✓ [======================================] 000/200 VUs  5m0s
 
 ```
 
-## v0.7.0
+## <a name="v0.7.0"></a>v0.7.0
 
 Adds _Change Data Capture_ (CDC) using the
-[Debezium MySQL Connector](https://debezium.io/documentation/reference/1.6/connectors/mysql.html)
+[Debezium MySQL Connector](https://debezium.io/documentation/reference/1.7/connectors/mysql.html)
 to publish messages into Kafka when the underlying MySQL database is mutated.
 
 ### Set-up
@@ -179,7 +292,7 @@ Additional topics will be visible following mutations of the database, for examp
 
 ![kowl_users_messages](img/kowl_users_messages.png)
 
-## v0.6.0
+## <a name="v0.6.0"></a>v0.6.0
 
 Adds tracing using [Jaeger](https://www.jaegertracing.io/)
 (see [Quick Start](https://opentracing.io/guides/golang/quick-start/)) and further metrics around gRPC requests.
@@ -260,7 +373,7 @@ As the number of requests increases further failures are visible both in the log
 
 ![jaeger_user_get_deadline_exceeded_error](img/jaeger_user_get_deadline_exceeded_error.png)
 
-## v0.5.0
+## <a name="v0.5.0"></a>v0.5.0
 
 Adds metrics and dashboard visualisation for HTTP request duration, using
 [Prometheus](https://prometheus.io/) and [Grafana](https://grafana.com/), respectively.
@@ -571,7 +684,7 @@ You'll need to generate a protoset and have
         "createdAt": "2021-07-06T13:08:45+01:00"
     }
 
-## v0.1.0
+## <a name="v0.1.0"></a>v0.1.0
 
 Basic HTTP and gRPC server.
 

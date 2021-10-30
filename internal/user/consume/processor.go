@@ -7,7 +7,7 @@ import (
 	"github.com/bendbennett/go-api-demo/internal/user"
 )
 
-type processor struct {
+type p struct {
 	creator user.Creator
 }
 
@@ -17,8 +17,8 @@ type Processor interface {
 
 func NewProcessor(
 	creator user.Creator,
-) Processor {
-	return &processor{
+) *p {
+	return &p{
 		creator,
 	}
 }
@@ -26,7 +26,7 @@ func NewProcessor(
 // Process examines userBefore and userAfter to determine
 // whether to create, update or delete.
 // TODO: Implement update and delete.
-func (p *processor) Process(
+func (p *p) Process(
 	ctx context.Context,
 	userChange inputData,
 ) error {

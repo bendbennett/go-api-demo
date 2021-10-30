@@ -21,22 +21,16 @@ type Component interface {
 }
 
 type App struct {
-	httpRouter Component
-	grpcRouter Component
-	consumer   Component
+	components []Component
 	closers    []io.Closer
 }
 
 func New(
-	httpRouter Component,
-	grpcRouter Component,
-	consumer Component,
+	components []Component,
 	closers []io.Closer,
 ) *App {
 	return &App{
-		httpRouter,
-		grpcRouter,
-		consumer,
+		components,
 		closers,
 	}
 }
@@ -48,17 +42,15 @@ func New(
 func (a *App) Run(ctx context.Context) error {
 	eg, ctx := errgroup.WithContext(ctx)
 
-	eg.Go(func() error {
-		return a.httpRouter.Run(ctx)
-	})
+	for _, c := range a.components {
+		f := func(c Component) func() error {
+			return func() error {
+				return c.Run(ctx)
+			}
+		}
 
-	eg.Go(func() error {
-		return a.grpcRouter.Run(ctx)
-	})
-
-	eg.Go(func() error {
-		return a.consumer.Run(ctx)
-	})
+		eg.Go(f(c))
+	}
 
 	return eg.Wait()
 }

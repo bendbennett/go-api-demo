@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion7
 type UserClient interface {
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*UsersResponse, error)
+	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*UsersResponse, error)
 }
 
 type userClient struct {
@@ -49,12 +50,22 @@ func (c *userClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.Cal
 	return out, nil
 }
 
+func (c *userClient) Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*UsersResponse, error) {
+	out := new(UsersResponse)
+	err := c.cc.Invoke(ctx, "/User/Search", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServer is the server API for User service.
 // All implementations must embed UnimplementedUserServer
 // for forward compatibility
 type UserServer interface {
 	Create(context.Context, *CreateRequest) (*UserResponse, error)
 	Read(context.Context, *ReadRequest) (*UsersResponse, error)
+	Search(context.Context, *SearchRequest) (*UsersResponse, error)
 	mustEmbedUnimplementedUserServer()
 }
 
@@ -67,6 +78,9 @@ func (UnimplementedUserServer) Create(context.Context, *CreateRequest) (*UserRes
 }
 func (UnimplementedUserServer) Read(context.Context, *ReadRequest) (*UsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Read not implemented")
+}
+func (UnimplementedUserServer) Search(context.Context, *SearchRequest) (*UsersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Search not implemented")
 }
 func (UnimplementedUserServer) mustEmbedUnimplementedUserServer() {}
 
@@ -117,6 +131,24 @@ func _User_Read_Handler(srv interface{}, ctx context.Context, dec func(interface
 	return interceptor(ctx, in, info, handler)
 }
 
+func _User_Search_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServer).Search(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/User/Search",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServer).Search(ctx, req.(*SearchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // User_ServiceDesc is the grpc.ServiceDesc for User service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -131,6 +163,10 @@ var User_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Read",
 			Handler:    _User_Read_Handler,
+		},
+		{
+			MethodName: "Search",
+			Handler:    _User_Search_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

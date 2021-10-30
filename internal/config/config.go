@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/elastic/go-elasticsearch/v7"
+
 	"github.com/Shopify/sarama"
 	"github.com/go-redis/redis/v8"
 	"github.com/go-sql-driver/mysql"
@@ -17,15 +19,18 @@ const StorageTypeMemory = "memory"
 const StorageTypeSQL = "sql"
 
 type Config struct {
-	MySQL    *mysql.Config
-	Storage  Storage
-	Redis    redis.Options
-	Kafka    Kafka
-	Metrics  Metrics
-	Tracing  Tracing
-	Logging  Logging
-	HTTPPort int
-	GRPCPort int
+	MySQL              *mysql.Config
+	Storage            Storage
+	Redis              redis.Options
+	Elasticsearch      elasticsearch.Config
+	UserConsumerCache  KafkaConsumer
+	UserConsumerSearch KafkaConsumer
+	Kafka              Kafka
+	Metrics            Metrics
+	Tracing            Tracing
+	Logging            Logging
+	HTTPPort           int
+	GRPCPort           int
 }
 
 type Storage struct {
@@ -49,16 +54,14 @@ type Message struct {
 }
 
 type Kafka struct {
-	Brokers      []string
-	UserConsumer KafkaConsumer
-	Version      sarama.KafkaVersion
+	Brokers []string
+	Version sarama.KafkaVersion
 }
 
 type KafkaConsumer struct {
-	GroupRebalanceStrategy sarama.BalanceStrategy
-	GroupID                string
-	Topics                 []string
-	IsEnabled              bool
+	GroupID   string
+	Topics    []string
+	IsEnabled bool
 }
 
 // New returns a populated Config struct with values
@@ -76,13 +79,6 @@ func New() Config {
 	if err != nil {
 		panic(err)
 	}
-
-	userConsumerGroupRebalanceStrategy := parseKafkaConsumerGroupRebalanceStrategy(
-		GetEnvAsString(
-			"KAFKA_USER_CONSUMER_REBALANCE_STRATEGY",
-			"",
-		),
-	)
 
 	return Config{
 		MySQL: &mysql.Config{
@@ -148,22 +144,36 @@ func New() Config {
 				",",
 				[]string{},
 			),
-			UserConsumer: KafkaConsumer{
-				GroupRebalanceStrategy: userConsumerGroupRebalanceStrategy,
-				GroupID: GetEnvAsString(
-					"KAFKA_USER_CONSUMER_GROUP_ID",
-					"",
-				),
-				Topics: GetEnvAsSliceOfStrings(
-					"KAFKA_USER_CONSUMER_TOPICS",
-					",",
-					[]string{},
-				),
-				IsEnabled: GetEnvAsBool(
-					"KAFKA_USER_CONSUMER_IS_ENABLED",
-					false,
-				),
-			},
+		},
+		UserConsumerCache: KafkaConsumer{
+			GroupID: GetEnvAsString(
+				"KAFKA_USER_CONSUMER_CACHE_GROUP_ID",
+				"",
+			),
+			Topics: GetEnvAsSliceOfStrings(
+				"KAFKA_USER_CONSUMER_CACHE_TOPICS",
+				",",
+				[]string{},
+			),
+			IsEnabled: GetEnvAsBool(
+				"KAFKA_USER_CONSUMER_CACHE_IS_ENABLED",
+				false,
+			),
+		},
+		UserConsumerSearch: KafkaConsumer{
+			GroupID: GetEnvAsString(
+				"KAFKA_USER_CONSUMER_SEARCH_GROUP_ID",
+				"",
+			),
+			Topics: GetEnvAsSliceOfStrings(
+				"KAFKA_USER_CONSUMER_SEARCH_TOPICS",
+				",",
+				[]string{},
+			),
+			IsEnabled: GetEnvAsBool(
+				"KAFKA_USER_CONSUMER_SEARCH_IS_ENABLED",
+				false,
+			),
 		},
 		HTTPPort: GetEnvAsInt(
 			"HTTP_PORT",
@@ -187,6 +197,13 @@ func New() Config {
 			Password: GetEnvAsString(
 				"REDIS_PASSWORD",
 				"pass",
+			),
+		},
+		Elasticsearch: elasticsearch.Config{
+			Addresses: GetEnvAsSliceOfStrings(
+				"ELASTICSEARCH_ADDRESSES",
+				",",
+				[]string{},
 			),
 		},
 	}
@@ -245,13 +262,4 @@ func GetEnvAsSliceOfStrings(
 	}
 
 	return defaultVal
-}
-
-func parseKafkaConsumerGroupRebalanceStrategy(strategy string) sarama.BalanceStrategy {
-	switch strategy {
-	case sarama.StickyBalanceStrategyName:
-		return sarama.BalanceStrategySticky
-	default:
-		panic("consumer group rebalance strategy is unrecognised")
-	}
 }

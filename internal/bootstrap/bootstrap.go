@@ -3,15 +3,17 @@ package bootstrap
 import (
 	"io"
 
-	"github.com/bendbennett/go-api-demo/internal/storage/redis"
-
 	"github.com/bendbennett/go-api-demo/internal/app"
 	"github.com/bendbennett/go-api-demo/internal/config"
 	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/routing"
+	"github.com/bendbennett/go-api-demo/internal/sanitise"
+	"github.com/bendbennett/go-api-demo/internal/storage/elastic"
+	"github.com/bendbennett/go-api-demo/internal/storage/redis"
 	userconsume "github.com/bendbennett/go-api-demo/internal/user/consume"
 	usercreate "github.com/bendbennett/go-api-demo/internal/user/create"
 	userread "github.com/bendbennett/go-api-demo/internal/user/read"
+	usersearch "github.com/bendbennett/go-api-demo/internal/user/search"
 	"github.com/bendbennett/go-api-demo/internal/validate"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -62,30 +64,44 @@ func New() *app.App {
 	}
 	closers = addCloser(closers, closer)
 
+	userSearch, err := elastic.NewUserSearch(conf.Elasticsearch)
+	if err != nil {
+		logger.Panic(err)
+	}
+
+	userCreateInteractor := usercreate.NewInteractor(userStorage)
 	userCreatePresenter := usercreate.NewPresenter()
 
 	userCreateControllerHTTP := usercreate.NewHTTPController(
 		validator,
-		usercreate.NewInteractor(
-			userStorage,
-		),
+		userCreateInteractor,
 		userCreatePresenter,
 		logger,
 	)
 
+	userReadInteractor := userread.NewInteractor(userCache)
 	userReadPresenter := userread.NewPresenter()
 
 	userReadControllerHTTP := userread.NewHTTPController(
-		userread.NewInteractor(
-			userCache,
-		),
+		userReadInteractor,
 		userReadPresenter,
+		logger,
+	)
+
+	userSearchInteractor := usersearch.NewInteractor(userSearch)
+	userSearchPresenter := usersearch.NewPresenter()
+
+	userSearchControllerHTTP := usersearch.NewHTTPController(
+		sanitise.AlphaWithHyphen,
+		userSearchInteractor,
+		userSearchPresenter,
 		logger,
 	)
 
 	httpControllers := routing.HTTPControllers{
 		UserCreateController: userCreateControllerHTTP.Create,
 		UserReadController:   userReadControllerHTTP.Read,
+		UserSearchController: userSearchControllerHTTP.Search,
 	}
 
 	httpRouter := routing.NewHTTPRouter(
@@ -98,24 +114,28 @@ func New() *app.App {
 
 	userCreateControllerGRPC := usercreate.NewGRPCController(
 		validator,
-		usercreate.NewInteractor(
-			userStorage,
-		),
+		userCreateInteractor,
 		userCreatePresenter,
 		logger,
 	)
 
 	userReadControllerGRPC := userread.NewGRPCController(
-		userread.NewInteractor(
-			userCache,
-		),
+		userReadInteractor,
 		userReadPresenter,
+		logger,
+	)
+
+	userSearchControllerGRPC := usersearch.NewGRPCController(
+		sanitise.AlphaWithHyphen,
+		userSearchInteractor,
+		userSearchPresenter,
 		logger,
 	)
 
 	grpcControllers := routing.GRPCControllers{
 		UserCreate: userCreateControllerGRPC.Create,
 		UserRead:   userReadControllerGRPC.Read,
+		UserSearch: userSearchControllerGRPC.Search,
 	}
 
 	grpcRouter := routing.NewGRPCRouter(
@@ -126,11 +146,25 @@ func New() *app.App {
 		conf.GRPCPort,
 	)
 
-	userProcessor := userconsume.NewProcessor(userCache)
+	userProcessorCache := userconsume.NewProcessor(userCache)
 
-	userConsumer, closer, err := userconsume.NewConsumer(
+	userConsumerCache, closer, err := userconsume.NewConsumer(
 		conf.Kafka,
-		userProcessor,
+		conf.UserConsumerCache,
+		userProcessorCache,
+		logger,
+	)
+	if err != nil {
+		logger.Panic(err)
+	}
+	closers = addCloser(closers, closer)
+
+	userProcessorSearch := userconsume.NewProcessor(userSearch)
+
+	userConsumerSearch, closer, err := userconsume.NewConsumer(
+		conf.Kafka,
+		conf.UserConsumerSearch,
+		userProcessorSearch,
 		logger,
 	)
 	if err != nil {
@@ -139,9 +173,12 @@ func New() *app.App {
 	closers = addCloser(closers, closer)
 
 	return app.New(
-		httpRouter,
-		grpcRouter,
-		userConsumer,
+		[]app.Component{
+			httpRouter,
+			grpcRouter,
+			userConsumerCache,
+			userConsumerSearch,
+		},
 		closers,
 	)
 }

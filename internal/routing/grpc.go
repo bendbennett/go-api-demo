@@ -26,6 +26,7 @@ type GRPCRouter struct {
 type GRPCControllers struct {
 	UserCreate func(ctx context.Context, in *user.CreateRequest) (*user.UserResponse, error)
 	UserRead   func(ctx context.Context, in *user.ReadRequest) (*user.UsersResponse, error)
+	UserSearch func(ctx context.Context, in *user.SearchRequest) (*user.UsersResponse, error)
 }
 
 // NewGRPCRouter returns a pointer to a GRPCRouter struct
@@ -42,6 +43,7 @@ func NewGRPCRouter(
 			UnimplementedUserServer: user.UnimplementedUserServer{},
 			UserCreate:              controllers.UserCreate,
 			UserRead:                controllers.UserRead,
+			UserSearch:              controllers.UserSearch,
 		},
 		logger,
 		metricEnabled,
@@ -52,11 +54,13 @@ func NewGRPCRouter(
 
 type UserCreate func(ctx context.Context, in *user.CreateRequest) (*user.UserResponse, error)
 type UserRead func(ctx context.Context, in *user.ReadRequest) (*user.UsersResponse, error)
+type UserSearch func(ctx context.Context, in *user.SearchRequest) (*user.UsersResponse, error)
 
 type userServer struct {
 	user.UnimplementedUserServer
 	UserCreate
 	UserRead
+	UserSearch
 }
 
 func (us *userServer) Create(
@@ -71,6 +75,15 @@ func (us *userServer) Read(
 	readReq *user.ReadRequest,
 ) (*user.UsersResponse, error) {
 	return us.UserRead(ctx, readReq)
+}
+
+func (us *userServer) Search(
+	ctx context.Context,
+	searchReq *user.SearchRequest,
+) (*user.UsersResponse, error) {
+	sr := searchReq
+
+	return us.UserSearch(ctx, sr)
 }
 
 // Run configures and starts a gRPC server. A go routine is

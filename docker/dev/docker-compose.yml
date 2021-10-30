@@ -15,7 +15,7 @@ services:
 
   go-api-demo-prometheus:
     container_name: go-api-demo-prometheus
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.30.3
     volumes:
       - ../prometheus:/etc/prometheus
     command:
@@ -32,7 +32,7 @@ services:
 
   go-api-demo-grafana:
     container_name: go-api-demo-grafana
-    image: grafana/grafana:latest
+    image: grafana/grafana:8.2.2
     volumes:
       - ../grafana/config/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
       - ../grafana/config/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml
@@ -43,14 +43,14 @@ services:
 
   go-api-demo-jaeger:
     container_name: go-api-demo-jaeger
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.27
     ports:
       - "6831:6831/udp"
       - "16686:16686"
 
   go-api-demo-zookeeper:
     container_name: go-api-demo-zookeeper
-    image: debezium/zookeeper:1.6
+    image: debezium/zookeeper:1.7
     ports:
       - "2181:2181"
       - "2888:2888"
@@ -58,7 +58,7 @@ services:
 
   go-api-demo-kafka:
     container_name: go-api-demo-kafka
-    image: debezium/kafka:1.6
+    image: debezium/kafka:1.7
     ports:
       - "9092:9092"
     environment:
@@ -92,6 +92,15 @@ services:
   go-api-demo-redis:
     container_name: go-api-demo-redis
     command: redis-server --requirepass pass
-    image: redis:latest
+    image: redis:6.2
     ports:
       - "6379:6379"
+
+  go-api-demo-elasticsearch:
+    container_name: go-api-demo-elastic
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.2
+    environment:
+      - discovery.type=single-node
+    ports:
+      - "9200:9200"
+      - "9300:9300"
