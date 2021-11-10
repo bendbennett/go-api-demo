@@ -14,16 +14,20 @@ import (
 	sqlopentracing "github.com/luna-duclos/instrumentedsql/opentracing"
 )
 
-func NewUserStorage(c config.Config) (user.CommandQuery, io.Closer, error) {
+func NewUserStorage(
+	mySQLConf *sqldriver.Config,
+	storageConf config.Storage,
+	isTracingEnabled bool,
+) (user.CommandQuery, io.Closer, error) {
 	var (
 		handle interface{}
 		err    error
 	)
 
-	if c.Storage.Type == config.StorageTypeSQL {
+	if storageConf.Type == config.StorageTypeSQL {
 		handle, err = sqlDB(
-			c.MySQL,
-			c.Tracing.Enabled,
+			mySQLConf,
+			isTracingEnabled,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -34,7 +38,7 @@ func NewUserStorage(c config.Config) (user.CommandQuery, io.Closer, error) {
 	case *sql.DB:
 		return mysql.NewUserStorage(
 			h,
-			c.Storage.QueryTimeout,
+			storageConf.QueryTimeout,
 		), h, nil
 	default:
 		return memory.NewUserStorage(), nil, nil

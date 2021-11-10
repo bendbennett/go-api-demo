@@ -33,14 +33,16 @@ func TestProcessor_Process(t *testing.T) {
 		{
 			"creator returns error",
 			&creatorMockError{},
-			inputData{},
+			inputData{
+				After: usr{ID: "id"},
+			},
 			true,
 		},
 		{
 			"unimplemented processing",
 			&creatorMock{},
 			inputData{
-				before: user.User{ID: "id"},
+				Before: usr{ID: "id"},
 			},
 			true,
 		},

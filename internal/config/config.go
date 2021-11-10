@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/segmentio/kafka-go"
+
 	"github.com/elastic/go-elasticsearch/v7"
 
-	"github.com/Shopify/sarama"
 	"github.com/go-redis/redis/v8"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
@@ -25,7 +26,6 @@ type Config struct {
 	Elasticsearch      elasticsearch.Config
 	UserConsumerCache  KafkaConsumer
 	UserConsumerSearch KafkaConsumer
-	Kafka              Kafka
 	Metrics            Metrics
 	Tracing            Tracing
 	Logging            Logging
@@ -39,7 +39,8 @@ type Storage struct {
 }
 
 type Metrics struct {
-	Enabled bool
+	Enabled            bool
+	CollectionInterval time.Duration
 }
 
 type Tracing struct {
@@ -53,15 +54,9 @@ type Logging struct {
 type Message struct {
 }
 
-type Kafka struct {
-	Brokers []string
-	Version sarama.KafkaVersion
-}
-
 type KafkaConsumer struct {
-	GroupID   string
-	Topics    []string
-	IsEnabled bool
+	ReaderConfig kafka.ReaderConfig
+	IsEnabled    bool
 }
 
 // New returns a populated Config struct with values
@@ -69,16 +64,6 @@ type KafkaConsumer struct {
 // values if the env vars do not exist.
 func New() Config {
 	_ = godotenv.Load()
-
-	kafkaVersion, err := sarama.ParseKafkaVersion(
-		GetEnvAsString(
-			"KAFKA_VERSION",
-			"",
-		),
-	)
-	if err != nil {
-		panic(err)
-	}
 
 	return Config{
 		MySQL: &mysql.Config{
@@ -112,11 +97,9 @@ func New() Config {
 				"STORAGE_TYPE",
 				StorageTypeMemory,
 			),
-			QueryTimeout: time.Millisecond * time.Duration(
-				GetEnvAsInt(
-					"STORAGE_QUERY_TIMEOUT",
-					3000,
-				),
+			QueryTimeout: GetEnvAsDuration(
+				"STORAGE_QUERY_TIMEOUT",
+				3*time.Second,
 			),
 		},
 		Metrics: Metrics{
@@ -124,6 +107,9 @@ func New() Config {
 				"METRICS_ENABLED",
 				true,
 			),
+			CollectionInterval: GetEnvAsDuration(
+				"METRICS_COLLECTION_INTERVAL",
+				5*time.Second),
 		},
 		Tracing: Tracing{
 			Enabled: GetEnvAsBool(
@@ -137,39 +123,67 @@ func New() Config {
 				false,
 			),
 		},
-		Kafka: Kafka{
-			Version: kafkaVersion,
-			Brokers: GetEnvAsSliceOfStrings(
-				"KAFKA_BROKERS",
-				",",
-				[]string{},
-			),
-		},
 		UserConsumerCache: KafkaConsumer{
-			GroupID: GetEnvAsString(
-				"KAFKA_USER_CONSUMER_CACHE_GROUP_ID",
-				"",
-			),
-			Topics: GetEnvAsSliceOfStrings(
-				"KAFKA_USER_CONSUMER_CACHE_TOPICS",
-				",",
-				[]string{},
-			),
+			ReaderConfig: kafka.ReaderConfig{
+				Brokers: GetEnvAsSliceOfStrings(
+					"KAFKA_BROKERS",
+					",",
+					[]string{},
+				),
+				GroupID: GetEnvAsString(
+					"KAFKA_USER_CONSUMER_CACHE_GROUP_ID",
+					"",
+				),
+				MaxBytes: GetEnvAsInt(
+					"KAFKA_USER_CONSUMER_CACHE_MAX_BYTES",
+					200e3,
+				),
+				MaxWait: GetEnvAsDuration(
+					"KAFKA_USER_CONSUMER_CACHE_MAX_WAIT",
+					30*time.Second,
+				),
+				RebalanceTimeout: GetEnvAsDuration(
+					"KAFKA_USER_CONSUMER_CACHE_REBALANCE_TIMEOUT",
+					30*time.Second,
+				),
+				Topic: GetEnvAsString(
+					"KAFKA_USER_CONSUMER_CACHE_TOPIC",
+					"",
+				),
+			},
 			IsEnabled: GetEnvAsBool(
 				"KAFKA_USER_CONSUMER_CACHE_IS_ENABLED",
 				false,
 			),
 		},
 		UserConsumerSearch: KafkaConsumer{
-			GroupID: GetEnvAsString(
-				"KAFKA_USER_CONSUMER_SEARCH_GROUP_ID",
-				"",
-			),
-			Topics: GetEnvAsSliceOfStrings(
-				"KAFKA_USER_CONSUMER_SEARCH_TOPICS",
-				",",
-				[]string{},
-			),
+			ReaderConfig: kafka.ReaderConfig{
+				Brokers: GetEnvAsSliceOfStrings(
+					"KAFKA_BROKERS",
+					",",
+					[]string{},
+				),
+				GroupID: GetEnvAsString(
+					"KAFKA_USER_CONSUMER_SEARCH_GROUP_ID",
+					"",
+				),
+				MaxBytes: GetEnvAsInt(
+					"KAFKA_USER_CONSUMER_SEARCH_MAX_BYTES",
+					200e3,
+				),
+				MaxWait: GetEnvAsDuration(
+					"KAFKA_USER_CONSUMER_SEARCH_MAX_WAIT",
+					30*time.Second,
+				),
+				RebalanceTimeout: GetEnvAsDuration(
+					"KAFKA_USER_CONSUMER_SEARCH_REBALANCE_TIMEOUT",
+					30*time.Second,
+				),
+				Topic: GetEnvAsString(
+					"KAFKA_USER_CONSUMER_SEARCH_TOPIC",
+					"",
+				),
+			},
 			IsEnabled: GetEnvAsBool(
 				"KAFKA_USER_CONSUMER_SEARCH_IS_ENABLED",
 				false,
@@ -259,6 +273,22 @@ func GetEnvAsSliceOfStrings(
 ) []string {
 	if val, ok := os.LookupEnv(key); ok {
 		return strings.Split(val, separator)
+	}
+
+	return defaultVal
+}
+
+func GetEnvAsDuration(
+	key string,
+	defaultVal time.Duration,
+) time.Duration {
+	if val, ok := os.LookupEnv(key); ok {
+		d, err := time.ParseDuration(fmt.Sprintf("%v", val))
+		if err != nil {
+			panic(err)
+		}
+
+		return d
 	}
 
 	return defaultVal

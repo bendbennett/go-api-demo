@@ -11,10 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
-
 	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/validate"
 	"github.com/stretchr/testify/assert"
@@ -59,6 +55,16 @@ func (pm *presenterMock) viewModel(outputData) viewModel {
 		CreatedAt: "2006-01-02T15:04:05-0700",
 	}
 }
+
+type loggerMock struct {
+}
+
+func (lm loggerMock) Panic(error)                         {}
+func (lm loggerMock) Panicf(string, ...interface{})       {}
+func (lm loggerMock) Error(error)                         {}
+func (lm loggerMock) Errorf(string, ...interface{})       {}
+func (lm loggerMock) Infof(string, ...interface{})        {}
+func (lm loggerMock) WithSpan(context.Context) log.Logger { return lm }
 
 func TestRest_Create(t *testing.T) {
 	cases := []struct {
@@ -125,10 +131,6 @@ func TestRest_Create(t *testing.T) {
 		},
 	}
 
-	zc, _ := observer.New(zapcore.DebugLevel)
-	zl := zap.New(zc)
-	logger := log.NewLogger(zl)
-
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/user", c.body)
@@ -138,7 +140,7 @@ func TestRest_Create(t *testing.T) {
 				c.validator,
 				c.interactor,
 				c.presenter,
-				logger,
+				loggerMock{},
 			)
 
 			controller.Create(w, r)

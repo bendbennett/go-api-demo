@@ -10,8 +10,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/segmentio/kafka-go"
 
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/elastic/go-elasticsearch/v7/esapi"
@@ -63,17 +66,21 @@ func Test_E2E(t *testing.T) {
 	userSearchGRPC(t, grpcClient)
 
 	cancel()
-	err := eg.Wait()
-	require.NoError(t, err)
 }
 
 func env(t *testing.T) {
 	env := map[string]string{
-		"HTTP_PORT":          "3001",
-		"GRPC_PORT":          "1235",
-		"TRACING_ENABLED":    "false",
-		"LOGGING_PRODUCTION": "true",
-		"METRICS_ENABLED":    "false",
+		"HTTP_PORT":                                    "3001",
+		"GRPC_PORT":                                    "1235",
+		"TRACING_ENABLED":                              "false",
+		"LOGGING_PRODUCTION":                           "true",
+		"METRICS_ENABLED":                              "false",
+		"KAFKA_USER_CONSUMER_CACHE_GROUP_ID":           "user-consumer-cache-group-id-test",
+		"KAFKA_USER_CONSUMER_CACHE_MAX_WAIT":           "1s",
+		"KAFKA_USER_CONSUMER_CACHE_REBALANCE_TIMEOUT":  "1s",
+		"KAFKA_USER_CONSUMER_SEARCH_GROUP_ID":          "user-consumer-search-group-id-test",
+		"KAFKA_USER_CONSUMER_SEARCH_MAX_WAIT":          "1s",
+		"KAFKA_USER_CONSUMER_SEARCH_REBALANCE_TIMEOUT": "1s",
 	}
 
 	for k, v := range env {
@@ -87,115 +94,190 @@ func env(t *testing.T) {
 
 // nolint: gocyclo
 func purge(t *testing.T) {
-	db, err := sql.Open(
-		"mysql",
-		fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/%s?parseTime=true",
-			config.GetEnvAsString("MYSQL_USER", ""),
-			config.GetEnvAsString("MYSQL_PASSWORD", ""),
-			config.GetEnvAsString("MYSQL_HOST", ""),
-			config.GetEnvAsString("MYSQL_PORT", ""),
-			config.GetEnvAsString("MYSQL_DBNAME", ""),
-		),
-	)
-	if err != nil {
-		t.Error(err)
-	}
+	wg := sync.WaitGroup{}
+	wg.Add(5)
 
-	dbInstance, err := migratemysql.WithInstance(db, &migratemysql.Config{})
-	if err != nil {
-		panic(err)
-	}
+	go func() {
+		defer wg.Done()
 
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://../internal/storage/mysql/migrations",
-		"mysql",
-		dbInstance,
-	)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if err := m.Drop(); err != nil && err != migrate.ErrNoChange {
-		t.Error(err)
-	}
-
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		t.Error(err)
-	}
-
-	rdb := redis.NewClient(
-		&redis.Options{
-			Addr: fmt.Sprintf("%s:%v",
-				config.GetEnvAsString("REDIS_HOST", "localhost"),
-				config.GetEnvAsInt("REDIS_PORT", 6379),
+		db, err := sql.Open(
+			"mysql",
+			fmt.Sprintf(
+				"%s:%s@tcp(%s:%s)/%s?parseTime=true",
+				config.GetEnvAsString("MYSQL_USER", ""),
+				config.GetEnvAsString("MYSQL_PASSWORD", ""),
+				config.GetEnvAsString("MYSQL_HOST", ""),
+				config.GetEnvAsString("MYSQL_PORT", ""),
+				config.GetEnvAsString("MYSQL_DBNAME", ""),
 			),
-			Password: config.GetEnvAsString("REDIS_PASSWORD", "pass"),
-		},
-	)
-
-	rdb.FlushAll(context.Background())
-
-	for {
-		cmd := rdb.Keys(context.Background(), "*")
-		keys, err := cmd.Result()
+		)
 		if err != nil {
 			t.Error(err)
 		}
 
-		if len(keys) == 0 {
-			break
+		dbInstance, err := migratemysql.WithInstance(db, &migratemysql.Config{})
+		if err != nil {
+			panic(err)
 		}
 
-		t.Log("waiting for redis flush to complete......")
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	es, err := elasticsearch.NewClient(
-		elasticsearch.Config{
-			Addresses: config.GetEnvAsSliceOfStrings(
-				"ELASTICSEARCH_ADDRESSES",
-				",",
-				[]string{"http://localhost:9200"}),
-		})
-	if err != nil {
-		t.Error(err)
-	}
-
-	for {
-		deleteReq := esapi.DeleteByQueryRequest{
-			Index: []string{"users"},
-			Body:  strings.NewReader(`{"query": {"match_all": {}}}`),
-		}
-
-		_, err = deleteReq.Do(context.Background(), es)
+		m, err := migrate.NewWithDatabaseInstance(
+			"file://../internal/storage/mysql/migrations",
+			"mysql",
+			dbInstance,
+		)
 		if err != nil {
 			t.Error(err)
 		}
 
-		searchReq := esapi.SearchRequest{
-			Index: []string{"users"},
-			Body:  strings.NewReader(`{"query": {"match_all": {}}}`),
+		if err := m.Drop(); err != nil && err != migrate.ErrNoChange {
+			t.Error(err)
 		}
 
-		resp, err := searchReq.Do(context.Background(), es)
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+			t.Error(err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		rdb := redis.NewClient(
+			&redis.Options{
+				Addr: fmt.Sprintf("%s:%v",
+					config.GetEnvAsString("REDIS_HOST", "localhost"),
+					config.GetEnvAsInt("REDIS_PORT", 6379),
+				),
+				Password: config.GetEnvAsString("REDIS_PASSWORD", "pass"),
+			},
+		)
+
+		rdb.FlushAll(context.Background())
+
+		for {
+			cmd := rdb.Keys(context.Background(), "*")
+			keys, err := cmd.Result()
+			if err != nil {
+				t.Error(err)
+			}
+
+			if len(keys) == 0 {
+				break
+			}
+
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		es, err := elasticsearch.NewClient(
+			elasticsearch.Config{
+				Addresses: config.GetEnvAsSliceOfStrings(
+					"ELASTICSEARCH_ADDRESSES",
+					",",
+					[]string{"http://localhost:9200"}),
+			})
 		if err != nil {
 			t.Error(err)
 		}
 
-		var r map[string]interface{}
+		for {
+			deleteReq := esapi.DeleteByQueryRequest{
+				Index: []string{"users"},
+				Body:  strings.NewReader(`{"query": {"match_all": {}}}`),
+			}
 
-		if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-			t.Error(err)
+			_, err = deleteReq.Do(context.Background(), es)
+			if err != nil {
+				t.Error(err)
+			}
+
+			searchReq := esapi.SearchRequest{
+				Index: []string{"users"},
+				Body:  strings.NewReader(`{"query": {"match_all": {}}}`),
+			}
+
+			resp, err := searchReq.Do(context.Background(), es)
+			if err != nil {
+				t.Error(err)
+			}
+
+			var r map[string]interface{}
+
+			if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+				t.Error(err)
+			}
+
+			if _, ok := r["hits"]; !ok {
+				break
+			}
+
+			if int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)) == 0 {
+				break
+			}
+
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		reader := kafka.NewReader(
+			kafka.ReaderConfig{
+				Brokers:          config.GetEnvAsSliceOfStrings("KAFKA_BROKERS", ",", []string{}),
+				GroupID:          config.GetEnvAsString("KAFKA_USER_CONSUMER_CACHE_GROUP_ID", ""),
+				Topic:            config.GetEnvAsString("KAFKA_USER_CONSUMER_CACHE_TOPIC", ""),
+				RebalanceTimeout: config.GetEnvAsDuration("KAFKA_USER_CONSUMER_CACHE_REBALANCE_TIMEOUT", time.Second),
+				MaxWait:          config.GetEnvAsDuration("KAFKA_USER_CONSUMER_CACHE_MAX_WAIT", time.Second),
+			},
+		)
+		defer reader.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+
+		for {
+			_, err := reader.ReadMessage(ctx)
+			if err != nil {
+				break
+			}
+
+			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 		}
 
-		if int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)) == 0 {
-			break
+		cancel()
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		reader := kafka.NewReader(
+			kafka.ReaderConfig{
+				Brokers:          config.GetEnvAsSliceOfStrings("KAFKA_BROKERS", ",", []string{}),
+				GroupID:          config.GetEnvAsString("KAFKA_USER_CONSUMER_SEARCH_GROUP_ID", ""),
+				Topic:            config.GetEnvAsString("KAFKA_USER_CONSUMER_SEARCH_TOPIC", ""),
+				RebalanceTimeout: config.GetEnvAsDuration("KAFKA_USER_CONSUMER_SEARCH_REBALANCE_TIMEOUT", time.Second),
+				MaxWait:          config.GetEnvAsDuration("KAFKA_USER_CONSUMER_SEARCH_MAX_WAIT", time.Second),
+			},
+		)
+		defer reader.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+
+		for {
+			_, err := reader.ReadMessage(ctx)
+			if err != nil {
+				break
+			}
+
+			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 		}
 
-		t.Log("waiting for elasticsearch delete users to complete......")
-		time.Sleep(10 * time.Millisecond)
-	}
+		cancel()
+	}()
+
+	wg.Wait()
 }
 
 type httpClient struct {
@@ -364,7 +446,7 @@ func userReadHTTP(t *testing.T, httpClient *httpClient) {
 			break
 		}
 
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	assert.Len(t, usersHTTP, 2)

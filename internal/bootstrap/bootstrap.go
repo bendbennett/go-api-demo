@@ -3,6 +3,9 @@ package bootstrap
 import (
 	"io"
 
+	"github.com/bendbennett/go-api-demo/internal/consume"
+	"github.com/bendbennett/go-api-demo/internal/trace"
+
 	"github.com/bendbennett/go-api-demo/internal/app"
 	"github.com/bendbennett/go-api-demo/internal/config"
 	"github.com/bendbennett/go-api-demo/internal/log"
@@ -15,11 +18,6 @@ import (
 	userread "github.com/bendbennett/go-api-demo/internal/user/read"
 	usersearch "github.com/bendbennett/go-api-demo/internal/user/search"
 	"github.com/bendbennett/go-api-demo/internal/validate"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	jaegercfg "github.com/uber/jaeger-client-go/config"
-	jaegerprom "github.com/uber/jaeger-lib/metrics/prometheus"
-	"go.uber.org/zap"
 )
 
 // New configures a logger for use throughout the application,
@@ -31,18 +29,18 @@ func New() *app.App {
 
 	conf := config.New()
 
-	logger, err := NewLogger(conf.Logging.Production)
+	logger, err := log.NewLogger(conf.Logging.Production)
 	if err != nil {
 		panic(err)
 	}
 
-	tracer, closer, err := NewTracer(logger, conf.Tracing.Enabled)
+	tracer, closer, err := trace.NewTracer(logger, conf.Tracing.Enabled)
 	if err != nil {
 		logger.Panic(err)
 	}
 	closers = addCloser(closers, closer)
 
-	httpPromVec, err := NewHTTPPromVec(conf.Metrics.Enabled)
+	httpProm, err := routing.NewHTTPProm(conf.Metrics.Enabled)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -52,19 +50,29 @@ func New() *app.App {
 		logger.Panic(err)
 	}
 
-	userStorage, closer, err := NewUserStorage(conf)
+	userStorage, closer, err := NewUserStorage(
+		conf.MySQL,
+		conf.Storage,
+		conf.Tracing.Enabled,
+	)
 	if err != nil {
 		logger.Panic(err)
 	}
 	closers = addCloser(closers, closer)
 
-	userCache, closer, err := redis.NewUserCache(conf.Redis)
+	userCache, closer, err := redis.NewUserCache(
+		conf.Redis,
+		conf.Tracing.Enabled,
+	)
 	if err != nil {
 		logger.Panic(err)
 	}
 	closers = addCloser(closers, closer)
 
-	userSearch, err := elastic.NewUserSearch(conf.Elasticsearch)
+	userSearch, err := elastic.NewUserSearch(
+		conf.Elasticsearch,
+		conf.Tracing.Enabled,
+	)
 	if err != nil {
 		logger.Panic(err)
 	}
@@ -107,7 +115,7 @@ func New() *app.App {
 	httpRouter := routing.NewHTTPRouter(
 		httpControllers,
 		logger,
-		httpPromVec,
+		httpProm,
 		tracer,
 		conf.HTTPPort,
 	)
@@ -146,30 +154,45 @@ func New() *app.App {
 		conf.GRPCPort,
 	)
 
+	userConsumerProm, err := consume.NewConsumerProm(conf.Metrics.Enabled)
+	if err != nil {
+		panic(err)
+	}
+
+	userConsumerPromUserCache := consume.NewConsumerPromCollector(
+		"user",
+		"cache",
+		conf.Metrics.CollectionInterval,
+		userConsumerProm,
+	)
+
 	userProcessorCache := userconsume.NewProcessor(userCache)
 
-	userConsumerCache, closer, err := userconsume.NewConsumer(
-		conf.Kafka,
+	userConsumerCache, closer := userconsume.NewConsumer(
 		conf.UserConsumerCache,
+		conf.Tracing.Enabled,
+		userConsumerPromUserCache,
 		userProcessorCache,
 		logger,
 	)
-	if err != nil {
-		logger.Panic(err)
-	}
 	closers = addCloser(closers, closer)
+
+	userConsumerPromUserSearch := consume.NewConsumerPromCollector(
+		"user",
+		"search",
+		conf.Metrics.CollectionInterval,
+		userConsumerProm,
+	)
 
 	userProcessorSearch := userconsume.NewProcessor(userSearch)
 
-	userConsumerSearch, closer, err := userconsume.NewConsumer(
-		conf.Kafka,
+	userConsumerSearch, closer := userconsume.NewConsumer(
 		conf.UserConsumerSearch,
+		conf.Tracing.Enabled,
+		userConsumerPromUserSearch,
 		userProcessorSearch,
 		logger,
 	)
-	if err != nil {
-		logger.Panic(err)
-	}
 	closers = addCloser(closers, closer)
 
 	return app.New(
@@ -192,115 +215,4 @@ func addCloser(
 	}
 
 	return closers
-}
-
-func NewLogger(prod bool) (log.Logger, error) {
-	var (
-		zapLogger *zap.Logger
-		err       error
-	)
-
-	switch prod {
-	case true:
-		zapLogger, err = zap.NewProduction()
-	default:
-		zapLogger, err = zap.NewDevelopment()
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	logger := log.NewLogger(
-		zapLogger.With(
-			zap.String("commit_hash", app.CommitHash()),
-		),
-	)
-
-	return logger, nil
-}
-
-// NewTracer toggles tracing on the basis of TRACING_ENABLED env var.
-// If TRACING_ENABLED is true, the configuration and behaviour of the
-// tracer is modified through JAEGER_... env vars.
-func NewTracer(
-	logger log.Logger,
-	tracingEnabled bool,
-) (opentracing.Tracer, io.Closer, error) {
-	if !tracingEnabled {
-		return opentracing.NoopTracer{}, nil, nil
-	}
-
-	cfg, err := jaegercfg.FromEnv()
-	if err != nil {
-		logger.Panic(err)
-	}
-
-	jaegerLogger := jaegerLoggerAdapter{logger}
-	jaegerMetrics := jaegerprom.New()
-
-	tracer, closer, err := cfg.NewTracer(
-		jaegercfg.Logger(jaegerLogger),
-		jaegercfg.Metrics(jaegerMetrics),
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	opentracing.SetGlobalTracer(tracer)
-
-	return tracer, closer, nil
-}
-
-type jaegerLoggerAdapter struct {
-	logger log.Logger
-}
-
-func (l jaegerLoggerAdapter) Error(msg string) {
-	l.logger.Errorf(msg)
-}
-
-func (l jaegerLoggerAdapter) Infof(msg string, args ...interface{}) {
-	l.logger.Infof(msg, args...)
-}
-
-func NewHTTPPromVec(metricsEnabled bool) (routing.HTTPPromVec, error) {
-	if !metricsEnabled {
-		return routing.HTTPPromVec{}, nil
-	}
-
-	histogramVec := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "A histogram of latencies for HTTP requests.",
-			Buckets: []float64{.001, .002, .005, .01, .02, .05, .1, .2, .5, 1, 2, 5},
-		},
-		[]string{"route", "method", "code"},
-	)
-
-	err := prometheus.Register(histogramVec)
-	if err != nil {
-		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
-			return routing.HTTPPromVec{}, err
-		}
-	}
-
-	counterVec := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_server_handled_total",
-			Help: "Total number of HTTP requests completed on the server, regardless of success or failure",
-		},
-		[]string{"route", "method", "code"},
-	)
-
-	err = prometheus.Register(counterVec)
-	if err != nil {
-		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
-			return routing.HTTPPromVec{}, err
-		}
-	}
-
-	return routing.HTTPPromVec{
-		HistogramVec: histogramVec,
-		CounterVec:   counterVec,
-	}, nil
 }

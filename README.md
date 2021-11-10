@@ -27,6 +27,7 @@ is used as a basis for event-driven cache and search engine population whilst av
 | [v0.7.0](#v0.7.0) | Adds Change Data Capture to publish events into Kafka when MySQL is mutated.  
 | [v0.8.0](#v0.8.0) | <ul><li>Adds a Kafka consumer which populates Redis by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Includes stress-testing of HTTP requests to retrieve/read users, comparing performance of retrieving users from Redis and MySQL.</li></ul> |
 | [v0.9.0](#v0.9.0) | <ul><li>Adds a Kafka consumer which populates Elasticsearch by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Adds HTTP and gRPC endpoints for searching users by name.</li></ul> |
+| [v0.10.0](#v0.10.0) | <ul><li>Adds tracing for Redis, Elasticsearch and the Kafka consumers.</li><li>Switch to <a href="https://github.com/segmentio/kafka-go">kafka-go</a>.</li><li>Adds basic metrics and dashboard for the Kafka consumers.</li></ul> |
 
 ### Set-up
 
@@ -72,6 +73,45 @@ supports both HTTP and [gRPC](https://support.insomnia.rest/article/188-grpc#ove
 Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0),
 [v0.3.0](#v0.3.0), [v0.4.0](#v0.4.0)).
+
+## <a name="v0.10.0"></a>v0.10.0
+Adds tracing for Redis, Elasticsearch and the Kafka consumers that populate these data stores.
+
+Adds basic metrics for the Kafka consumers. 
+
+### Set-up
+
+    make docker-up
+    make run
+
+Running (see [docker](#k6_docker_post) or [local](#k6_local_post)) the [k6](https://k6.io/) script will send 50 
+requests per second (RPS) to the `POST /user` endpoint for 5 minutes.
+
+#### <a name="k6_docker_post"></a>Docker
+
+     docker run -e HOST=host.docker.internal -i loadimpact/k6 run - <k6/post.js
+
+#### <a name="k6_local_post"></a>Local
+
+[Install k6](https://k6.io/docs/getting-started/installation/) and run:
+
+    k6 run -e HOST=localhost k6/post.js
+
+### Load Testing
+
+![user_post_consumer_1](img/user_post_consumer_1.png)
+
+At the outset of the load test, the message consumption rate, _consumer (msg/sec)_, for the consumer that populates 
+Redis (Redis consumer - orange line) maintains throughput aligned with the rate at which _users_ are being created. 
+However, the message consumption rate for the consumer that populates Elasticsearch (Elasticsearch consumer - 
+yellow line) has a noticeably lower throughput. The percentage of the _queue capacity_ (100 messages) in use, suggests 
+that there is a bottleneck in the processing of messages by the _Elasticsearch consumer_ as it is continuously 
+100%. This is confirmed by the _message lag_ which shows that _Elasticsearch consumer_ processes messages less quickly
+than they are produced.
+
+After 5 minutes, the requests being sent to the `POST /user` endpoint and the processing of messages by the 
+_Redis consumer_ cease. This results in an increase in the number of messages processed per second by the 
+_Elasticsearch consumer_ and, suggests that the bottleneck might have additional contributory factors.
 
 ## <a name="v0.9.0"></a>v0.9.0
 

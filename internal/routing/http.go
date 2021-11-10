@@ -26,9 +26,9 @@ type HTTPControllers struct {
 	UserSearchController func(w http.ResponseWriter, r *http.Request)
 }
 
-type HTTPPromVec struct {
-	HistogramVec *prometheus.HistogramVec
-	CounterVec   *prometheus.CounterVec
+type HTTPProm struct {
+	RequestDurationHistogram *prometheus.HistogramVec
+	RequestCounter           *prometheus.CounterVec
 }
 
 type route struct {
@@ -42,7 +42,7 @@ type route struct {
 func NewHTTPRouter(
 	controllers HTTPControllers,
 	logger log.Logger,
-	httpPromVec HTTPPromVec,
+	httpProm HTTPProm,
 	tracer opentracing.Tracer,
 	port int,
 ) *HTTPRouter {
@@ -82,7 +82,7 @@ func NewHTTPRouter(
 		router.HandleFunc(
 			route.path,
 			wrapMetrics(
-				httpPromVec,
+				httpProm,
 				route,
 			),
 		).Methods(route.method)
@@ -107,12 +107,12 @@ func NewHTTPRouter(
 }
 
 func wrapMetrics(
-	httpPromVec HTTPPromVec,
+	httpProm HTTPProm,
 	route route,
 ) http.HandlerFunc {
-	if httpPromVec.CounterVec != nil {
+	if httpProm.RequestCounter != nil {
 		route.handler = promhttp.InstrumentHandlerCounter(
-			httpPromVec.CounterVec.MustCurryWith(
+			httpProm.RequestCounter.MustCurryWith(
 				prometheus.Labels{
 					"route":  route.path,
 					"method": route.method,
@@ -122,9 +122,9 @@ func wrapMetrics(
 		)
 	}
 
-	if httpPromVec.HistogramVec != nil {
+	if httpProm.RequestDurationHistogram != nil {
 		route.handler = promhttp.InstrumentHandlerDuration(
-			httpPromVec.HistogramVec.MustCurryWith(
+			httpProm.RequestDurationHistogram.MustCurryWith(
 				prometheus.Labels{
 					"route":  route.path,
 					"method": route.method,
@@ -175,4 +175,46 @@ func (r *HTTPRouter) Run(ctx context.Context) error {
 	}
 
 	return err
+}
+
+func NewHTTPProm(metricsEnabled bool) (HTTPProm, error) {
+	if !metricsEnabled {
+		return HTTPProm{}, nil
+	}
+
+	requestDurationHistogram := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "A histogram of latencies for HTTP requests.",
+			Buckets: []float64{.001, .002, .005, .01, .02, .05, .1, .2, .5, 1, 2, 5},
+		},
+		[]string{"route", "method", "code"},
+	)
+
+	err := prometheus.Register(requestDurationHistogram)
+	if err != nil {
+		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+			return HTTPProm{}, err
+		}
+	}
+
+	requestCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_server_handled_total",
+			Help: "Total number of HTTP requests completed on the server, regardless of success or failure",
+		},
+		[]string{"route", "method", "code"},
+	)
+
+	err = prometheus.Register(requestCounter)
+	if err != nil {
+		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+			return HTTPProm{}, err
+		}
+	}
+
+	return HTTPProm{
+		RequestDurationHistogram: requestDurationHistogram,
+		RequestCounter:           requestCounter,
+	}, nil
 }

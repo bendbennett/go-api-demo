@@ -11,11 +11,6 @@ import (
 	"github.com/bendbennett/go-api-demo/internal/sanitise"
 	"github.com/gorilla/mux"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
-
-	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -74,10 +69,6 @@ func TestRest_Search(t *testing.T) {
 		},
 	}
 
-	zc, _ := observer.New(zapcore.DebugLevel)
-	zl := zap.New(zc)
-	logger := log.NewLogger(zl)
-
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/user/search/%s", c.searchTerm), nil)
@@ -89,7 +80,7 @@ func TestRest_Search(t *testing.T) {
 				sanitise.AlphaWithHyphen,
 				c.interactor,
 				c.presenter,
-				logger,
+				loggerMock{},
 			)
 
 			controller.Search(w, r)

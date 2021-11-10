@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bendbennett/go-api-demo/internal/app"
+
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap/zapcore"
@@ -20,12 +22,30 @@ type Logger interface {
 	WithSpan(ctx context.Context) Logger
 }
 
-type logger struct {
-	logger *zap.Logger
+func NewLogger(prod bool) (logger, error) {
+	var (
+		zapLogger *zap.Logger
+		err       error
+	)
+
+	switch prod {
+	case true:
+		zapLogger, err = zap.NewProduction()
+	default:
+		zapLogger, err = zap.NewDevelopment()
+	}
+	if err != nil {
+		return logger{}, err
+	}
+
+	return logger{
+		zapLogger.With(
+			zap.String("commit_hash", app.CommitHash())),
+	}, nil
 }
 
-func NewLogger(zl *zap.Logger) Logger {
-	return logger{zl}
+type logger struct {
+	logger *zap.Logger
 }
 
 func (l logger) Panic(err error) {

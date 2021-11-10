@@ -6,6 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 
 	"github.com/bendbennett/go-api-demo/internal/user"
 	"github.com/go-redis/redis/v8"
@@ -19,15 +23,18 @@ type cache interface {
 	Scan(ctx context.Context, cursor uint64, match string, count int64) *redis.ScanCmd
 }
 
-type UserCache struct {
+type userCache struct {
 	cache cache
 }
 
-func NewUserCache(conf redis.Options) (*UserCache, io.Closer, error) {
+func NewUserCache(
+	redisConf redis.Options,
+	isTracingEnabled bool,
+) (*userCache, io.Closer, error) {
 	rdb := redis.NewClient(
 		&redis.Options{
-			Addr:     conf.Addr,
-			Password: conf.Password,
+			Addr:     redisConf.Addr,
+			Password: redisConf.Password,
 		},
 	)
 
@@ -36,12 +43,16 @@ func NewUserCache(conf redis.Options) (*UserCache, io.Closer, error) {
 		panic(err)
 	}
 
-	return &UserCache{
+	if isTracingEnabled {
+		rdb.AddHook(instrumentCache{})
+	}
+
+	return &userCache{
 		cache: rdb,
 	}, rdb, nil
 }
 
-func (c *UserCache) Create(ctx context.Context, users ...user.User) error {
+func (c *userCache) Create(ctx context.Context, users ...user.User) error {
 	if len(users) == 0 {
 		return nil
 	}
@@ -60,7 +71,7 @@ func (c *UserCache) Create(ctx context.Context, users ...user.User) error {
 	return c.cache.MSet(ctx, usrMap).Err()
 }
 
-func (c *UserCache) Read(ctx context.Context) ([]user.User, error) {
+func (c *userCache) Read(ctx context.Context) ([]user.User, error) {
 	var (
 		users []user.User
 		keys  []string
@@ -105,4 +116,44 @@ func (c *UserCache) Read(ctx context.Context) ([]user.User, error) {
 	}
 
 	return users, nil
+}
+
+type instrumentCache struct{}
+
+func (ic instrumentCache) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
+	span, sCtx := opentracing.StartSpanFromContext(ctx, "redis:cmd")
+	ext.DBType.Set(span, "redis")
+	ext.DBStatement.Set(span, strings.ToUpper(cmd.Name()))
+
+	return sCtx, nil
+}
+
+func (ic instrumentCache) AfterProcess(ctx context.Context, cmd redis.Cmder) error {
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		span.Finish()
+	}
+
+	return nil
+}
+
+func (ic instrumentCache) BeforeProcessPipeline(ctx context.Context, cmds []redis.Cmder) (context.Context, error) {
+	span, sCtx := opentracing.StartSpanFromContext(ctx, "redis:pipeline-cmd")
+	ext.DBType.Set(span, "redis")
+	cmdNames := make([]string, len(cmds))
+	for i, cmd := range cmds {
+		cmdNames[i] = strings.ToUpper(cmd.Name())
+	}
+	ext.DBStatement.Set(span, strings.Join(cmdNames, " --> "))
+
+	return sCtx, nil
+}
+
+func (ic instrumentCache) AfterProcessPipeline(ctx context.Context, cmds []redis.Cmder) error {
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		span.Finish()
+	}
+
+	return nil
 }

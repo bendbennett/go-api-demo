@@ -1,100 +1,164 @@
 package consume
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"time"
 
-	"github.com/bendbennett/go-api-demo/internal/consume"
-
-	"github.com/Shopify/sarama"
 	"github.com/bendbennett/go-api-demo/internal/config"
+	prom "github.com/bendbennett/go-api-demo/internal/consume"
 	"github.com/bendbennett/go-api-demo/internal/log"
-	"github.com/bendbennett/go-api-demo/internal/user"
+	"github.com/opentracing/opentracing-go"
+	kafka "github.com/segmentio/kafka-go"
 )
 
-// Consumer represents a Sarama consumer group consumer
-type userConsumer struct {
-	processor Processor
-	log       log.Logger
+type consumeFunc func(context.Context, *c, kafka.Message) error
+
+type reader interface {
+	FetchMessage(context.Context) (kafka.Message, error)
+	CommitMessages(context.Context, ...kafka.Message) error
+	Stats() kafka.ReaderStats
+}
+
+type c struct {
+	reader        reader
+	consumeFunc   consumeFunc
+	processor     Processor
+	log           log.Logger
+	promCollector prom.PromCollector
 }
 
 func NewConsumer(
-	confKafka config.Kafka,
-	confUserConsumer config.KafkaConsumer,
+	conf config.KafkaConsumer,
+	isTracingEnabled bool,
+	promCollector prom.PromCollector,
 	processor Processor,
 	log log.Logger,
-) (consume.Run, io.Closer, error) {
-	if !confUserConsumer.IsEnabled {
-		return &consume.CCGNoop{}, nil, nil
+) (*c, io.Closer) {
+	r := kafka.NewReader(conf.ReaderConfig)
+
+	cf := consume
+
+	if isTracingEnabled {
+		cf = wrappedConsume
 	}
 
-	userConfig := sarama.NewConfig()
-	userConfig.Version = confKafka.Version
-
-	cg, err := sarama.NewConsumerGroup(
-		confKafka.Brokers,
-		confUserConsumer.GroupID,
-		userConfig,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return &consume.CCG{
-		Consumer: &userConsumer{
-			processor,
-			log,
-		},
-		ConsumerGroup: cg,
-		Topics:        confUserConsumer.Topics,
-	}, cg, nil
+	return &c{
+		reader:        r,
+		consumeFunc:   cf,
+		processor:     processor,
+		promCollector: promCollector,
+		log:           log,
+	}, r
 }
 
-// Setup is run at the beginning of a new session, before ConsumeClaim
-func (uc *userConsumer) Setup(sarama.ConsumerGroupSession) error {
-	return nil
-}
-
-// Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
-func (uc *userConsumer) Cleanup(sarama.ConsumerGroupSession) error {
-	return nil
-}
-
-// ConsumeClaim must start a consume loop of ConsumerGroupClaim's Messages().
+// Run is executed in a loop to continuously consume messages.
+// A goroutine is used to intermittently collect prometheus metrics
+// for the Kafka reader.
 // TODO: Implement retry topic for error cases.
-//
+func (c *c) Run(ctx context.Context) error {
+	go func() {
+		ticker := time.NewTicker(c.promCollector.Interval)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				kafkaStats := c.reader.Stats()
+
+				stats := prom.Stats{
+					Messages:      kafkaStats.Messages,
+					QueueLength:   kafkaStats.QueueLength,
+					QueueCapacity: kafkaStats.QueueCapacity,
+					Lag:           kafkaStats.Lag,
+				}
+
+				c.promCollector.Update(stats)
+			}
+		}
+	}()
+
+	for {
+		msg, err := c.reader.FetchMessage(ctx)
+		if err != nil {
+			if err == ctx.Err() {
+				c.log.Infof("%s", err)
+				return nil
+			}
+
+			c.log.Error(err)
+			continue
+		}
+
+		err = c.consumeFunc(ctx, c, msg)
+		if err != nil {
+			c.log.Error(err)
+		}
+	}
+}
+
+// consume parses the msg and then calls Process.
 // The Kafka connector emits events with a non-nil key and a nil value as these represent "tombstone"
-// events for use by compaction. We therefore need to check whether the inputData is an empty struct,
-// returned from userBeforeAfter which indicates the message should be ignored.
-func (uc *userConsumer) ConsumeClaim(
-	session sarama.ConsumerGroupSession,
-	claim sarama.ConsumerGroupClaim,
+// events for use by compaction. We therefore need to check whether the msg.Value is nil and if so,
+// the message should be committed and ignored.
+func consume(
+	ctx context.Context,
+	c *c,
+	msg kafka.Message,
 ) error {
-	for message := range claim.Messages() {
-		userBeforeAfter, err := uc.userBeforeAfter(message)
+	if msg.Value == nil {
+		err := c.reader.CommitMessages(ctx, msg)
 		if err != nil {
-			uc.log.Error(err)
-			continue
+			return err
 		}
+		return nil
+	}
 
-		if userBeforeAfter == (inputData{}) {
-			continue
-		}
+	var userPayload usrPayload
 
-		err = uc.processor.Process(session.Context(), userBeforeAfter)
-		if err != nil {
-			uc.log.Error(err)
-			continue
-		}
+	err := json.Unmarshal(msg.Value, &userPayload)
+	if err != nil {
+		return err
+	}
 
-		session.MarkMessage(message, "")
+	input := inputData{
+		Before: userPayload.Payload.Before,
+		After:  userPayload.Payload.After,
+	}
+
+	err = c.processor.Process(ctx, input)
+	if err != nil {
+		return err
+	}
+
+	err = c.reader.CommitMessages(ctx, msg)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-type userPayload struct {
+// wrappedConsume decorates consume func with tracing. We avoid wrapping tracing around
+// c.reader.FetchMessage as this function blocks, so in cases where we are waiting for
+// messages to arrive this produces spans that include the wait time.
+func wrappedConsume(
+	ctx context.Context,
+	c *c,
+	msg kafka.Message,
+) error {
+	span, ctx := opentracing.StartSpanFromContext(
+		ctx,
+		"Consume: User",
+	)
+	defer span.Finish()
+
+	return consume(ctx, c, msg)
+}
+
+type usrPayload struct {
 	Payload payload `json:"payload"`
 }
 
@@ -111,66 +175,6 @@ type usr struct {
 }
 
 type inputData struct {
-	before user.User
-	after  user.User
-}
-
-// userBeforeAfter converts the JSON payload retrieved from the Kafka message to map[string]user.User.
-//
-// The Kafka connector emits events with a non-nil key and a nil value as these represent "tombstone"
-// events for use by compaction. We therefore need to check whether the message.Value is nil and if
-// so, return an empty inputData struct.
-//
-// The CreatedAt timestamp (io.debezium.time.Timestamp) that is returned in the message is an int64
-// that represents the unix timestamp in msec. As the first arg to time.Unix is expected to be sec,
-// the CreatedAt value from the message needs to be divided by 1000. The second arg to time.Unix is
-// nsec, so the msec part of created at is multiplied by 1000000.
-func (uc *userConsumer) userBeforeAfter(message *sarama.ConsumerMessage) (inputData, error) {
-	var userPayload userPayload
-
-	if message.Value == nil {
-		return inputData{}, nil
-	}
-
-	err := json.Unmarshal(message.Value, &userPayload)
-	if err != nil {
-		return inputData{}, err
-	}
-
-	const (
-		divisor    = 1e3
-		multiplier = 1e6
-	)
-
-	beforeCreatedAtSec, beforeCreateAtNanoSec, afterCreatedAtSec, afterCreateAtNanoSec :=
-		int64(0), int64(0), int64(0), int64(0)
-
-	beforeCreatedAt, afterCreatedAt := time.Time{}, time.Time{}
-
-	if userPayload.Payload.Before.CreatedAt > 0 {
-		beforeCreatedAtSec = userPayload.Payload.Before.CreatedAt / divisor
-		beforeCreateAtNanoSec = (userPayload.Payload.Before.CreatedAt - (beforeCreatedAtSec * divisor)) * multiplier
-		beforeCreatedAt = time.Unix(beforeCreatedAtSec, beforeCreateAtNanoSec)
-	}
-
-	if userPayload.Payload.After.CreatedAt > 0 {
-		afterCreatedAtSec = userPayload.Payload.After.CreatedAt / divisor
-		afterCreateAtNanoSec = (userPayload.Payload.After.CreatedAt - (afterCreatedAtSec * divisor)) * multiplier
-		afterCreatedAt = time.Unix(afterCreatedAtSec, afterCreateAtNanoSec)
-	}
-
-	return inputData{
-		before: user.User{
-			CreatedAt: beforeCreatedAt,
-			ID:        userPayload.Payload.Before.ID,
-			FirstName: userPayload.Payload.Before.FirstName,
-			LastName:  userPayload.Payload.Before.LastName,
-		},
-		after: user.User{
-			CreatedAt: afterCreatedAt,
-			ID:        userPayload.Payload.After.ID,
-			FirstName: userPayload.Payload.After.FirstName,
-			LastName:  userPayload.Payload.After.LastName,
-		},
-	}, nil
+	Before usr
+	After  usr
 }

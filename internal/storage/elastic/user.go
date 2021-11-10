@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
+
 	"github.com/bendbennett/go-api-demo/internal/user"
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/elastic/go-elasticsearch/v7/esapi"
@@ -20,7 +23,7 @@ type search interface {
 	Perform(request *http.Request) (*http.Response, error)
 }
 
-type UserSearch struct {
+type userSearch struct {
 	search search
 }
 
@@ -30,8 +33,11 @@ type r struct {
 	isError    bool
 }
 
-func NewUserSearch(conf elasticsearch.Config) (*UserSearch, error) {
-	es, err := elasticsearch.NewClient(conf)
+func NewUserSearch(
+	esConf elasticsearch.Config,
+	isTracingEnabled bool,
+) (*userSearch, error) {
+	es, err := elasticsearch.NewClient(esConf)
 	if err != nil {
 		return nil, err
 	}
@@ -41,9 +47,13 @@ func NewUserSearch(conf elasticsearch.Config) (*UserSearch, error) {
 		return nil, err
 	}
 
-	return &UserSearch{
-		search: es,
-	}, nil
+	us := userSearch{es}
+
+	if isTracingEnabled {
+		us = userSearch{&instrumentSearch{es}}
+	}
+
+	return &us, nil
 }
 
 type elasticUser struct {
@@ -54,7 +64,10 @@ type elasticUser struct {
 	LastName  string    `json:"last_name"`
 }
 
-func (s *UserSearch) Create(ctx context.Context, users ...user.User) error {
+func (s *userSearch) Create(
+	ctx context.Context,
+	users ...user.User,
+) error {
 	var wg sync.WaitGroup
 	responses := make(chan r)
 
@@ -121,7 +134,7 @@ func (s *UserSearch) Create(ctx context.Context, users ...user.User) error {
 	return err
 }
 
-func (s *UserSearch) Search(
+func (s *userSearch) Search(
 	ctx context.Context,
 	searchTerm string,
 ) ([]user.User, error) {
@@ -213,4 +226,25 @@ type u struct {
 	ID        string    `json:"id"`
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`
+}
+
+type instrumentSearch struct {
+	search search
+}
+
+func (s *instrumentSearch) Perform(request *http.Request) (*http.Response, error) {
+	span, _ := opentracing.StartSpanFromContext(
+		request.Context(),
+		fmt.Sprintf(
+			"HTTP %s: %s",
+			request.Method,
+			request.URL.Path,
+		),
+	)
+	ext.Component.Set(span, "database/elasticsearch")
+	ext.HTTPMethod.Set(span, request.Method)
+	ext.HTTPUrl.Set(span, request.URL.Path)
+	defer span.Finish()
+
+	return s.search.Perform(request)
 }

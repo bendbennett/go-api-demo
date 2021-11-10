@@ -80,6 +80,7 @@ services:
       - STATUS_STORAGE_TOPIC=go_api_demo_statuses
     depends_on:
       - go-api-demo-db
+      - go-api-demo-kafka
 
   go-api-demo-kowl:
     container_name: go-api-demo-kowl

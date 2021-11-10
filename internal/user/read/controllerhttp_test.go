@@ -7,11 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
-
-	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,10 +49,6 @@ func TestRest_Create(t *testing.T) {
 		},
 	}
 
-	zc, _ := observer.New(zapcore.DebugLevel)
-	zl := zap.New(zc)
-	logger := log.NewLogger(zl)
-
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "/user", nil)
@@ -66,7 +57,7 @@ func TestRest_Create(t *testing.T) {
 			controller := NewHTTPController(
 				c.interactor,
 				c.presenter,
-				logger,
+				loggerMock{},
 			)
 
 			controller.Read(w, r)

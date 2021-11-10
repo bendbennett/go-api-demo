@@ -37,8 +37,8 @@ func New(
 
 // Run uses an errgroup.WithContext for synchronisation,
 // error propagation, and Context cancellation,
-// facilitating graceful shutdown of HTTP and gRPC servers
-// on interrupt or terminate.
+// facilitating graceful shutdown, on interrupt or
+// terminate, of HTTP & gRPC servers and Kafka consumers.
 func (a *App) Run(ctx context.Context) error {
 	eg, ctx := errgroup.WithContext(ctx)
 
