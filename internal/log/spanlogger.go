@@ -18,7 +18,7 @@ type spanLogger struct {
 }
 
 func (sl spanLogger) Panic(err error) {
-	msg := fmt.Sprintf("%v", err)
+	msg := fmt.Sprintf("%+v", err)
 	sl.logToSpan("panic", msg)
 	sl.logger.Panic(msg, sl.spanFields...)
 }
@@ -30,7 +30,7 @@ func (sl spanLogger) Panicf(msg string, args ...interface{}) {
 }
 
 func (sl spanLogger) Error(err error) {
-	msg := fmt.Sprintf("%v", err)
+	msg := fmt.Sprintf("%+v", err)
 	sl.logToSpan("error", msg)
 	sl.logger.Error(msg, sl.spanFields...)
 }

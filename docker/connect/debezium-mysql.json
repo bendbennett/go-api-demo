@@ -27,6 +27,11 @@
     "topic.creation.users.replication.factor": 1,
     "topic.creation.users.partitions": 2,
     "topic.creation.users.cleanup.policy": "compact",
-    "topic.creation.users.compression.type": "producer"
+    "topic.creation.users.compression.type": "producer",
+
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://go-api-demo-schema-registry:8081",
+    "value.converter.schema.registry.url": "http://go-api-demo-schema-registry:8081"
   }
 }

@@ -1,7 +1,10 @@
 package bootstrap
 
 import (
+	"fmt"
 	"io"
+
+	"github.com/bendbennett/go-api-demo/internal/schema"
 
 	"github.com/bendbennett/go-api-demo/internal/app"
 	"github.com/bendbennett/go-api-demo/internal/config"
@@ -16,7 +19,7 @@ func newConsumers(
 	logger log.Logger,
 	userCache user.CreatorReader,
 	userSearch user.CreatorSearcher,
-) ([]app.Component, []io.Closer) {
+) ([]app.Component, []io.Closer, error) {
 	var (
 		components []app.Component
 		closers    []io.Closer
@@ -25,6 +28,18 @@ func newConsumers(
 	err := consume.CreateTopics(conf.TopicConfigs)
 	if err != nil {
 		panic(err)
+	}
+
+	schemaClient := schema.NewClient(conf.SchemaRegistry.ClientTimeout)
+	userDecoder, err := schemaClient.GetDecoder(
+		fmt.Sprintf(
+			"%s%s",
+			conf.SchemaRegistry.Domain,
+			conf.SchemaRegistry.Endpoints["usersValue"],
+		),
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	userConsumerProm, err := consume.NewConsumerProm(conf.Metrics.Enabled)
@@ -46,6 +61,7 @@ func newConsumers(
 		conf.Tracing.Enabled,
 		userConsumerPromUserCache,
 		userProcessorCache,
+		userDecoder,
 		logger,
 	)
 
@@ -69,6 +85,7 @@ func newConsumers(
 		conf.Tracing.Enabled,
 		userConsumerPromUserSearch,
 		userProcessorSearch,
+		userDecoder,
 		logger,
 	)
 
@@ -78,5 +95,5 @@ func newConsumers(
 
 	closers = addCloser(closers, closrs...)
 
-	return components, closers
+	return components, closers, nil
 }

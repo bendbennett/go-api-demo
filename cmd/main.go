@@ -15,6 +15,7 @@ import (
 // the context when an interrupt or termination signal is received.
 func main() {
 	app := bootstrap.New()
+	defer app.Close()
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -22,12 +23,8 @@ func main() {
 
 	err := app.Run(ctx)
 	if err != nil {
-		log.Fatalf("app run failed: %v", err)
+		log.Printf("app run error: %v\n", err)
 	}
-
-	app.Close()
-
-	os.Exit(0)
 }
 
 func signalShutdownHandler(cancelFunc context.CancelFunc) {

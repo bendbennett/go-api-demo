@@ -49,7 +49,7 @@ type logger struct {
 }
 
 func (l logger) Panic(err error) {
-	l.Panicf("%v", err)
+	l.Panicf("%+v", err)
 }
 
 func (l logger) Panicf(msg string, args ...interface{}) {
@@ -57,7 +57,7 @@ func (l logger) Panicf(msg string, args ...interface{}) {
 }
 
 func (l logger) Error(err error) {
-	l.Errorf("%v", err)
+	l.Errorf("%+v", err)
 }
 
 func (l logger) Errorf(msg string, args ...interface{}) {

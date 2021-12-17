@@ -14,6 +14,7 @@ import (
 // retrieves configuration application, configures HTTP and
 // gRPC routers, populates an app.App struct with the configured
 // routers and returns a pointer to the populated app.App.
+// nolint:gocyclo
 func New() *app.App {
 	var (
 		components []app.Component
@@ -48,7 +49,11 @@ func New() *app.App {
 	components = append(components, routers...)
 	closers = addCloser(closers, closrs...)
 
-	consumers, closrs := newConsumers(conf, logger, userCache, userSearch)
+	consumers, closrs, err := newConsumers(conf, logger, userCache, userSearch)
+	if err != nil {
+		logger.Panic(err)
+	}
+
 	components = append(components, consumers...)
 	closers = addCloser(closers, closrs...)
 

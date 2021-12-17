@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/bendbennett/go-api-demo/internal/user"
 )
 
@@ -64,7 +66,7 @@ func (u *UserStorage) Create(
 		args...,
 	)
 	if err != nil {
-		return err
+		return errors.Errorf("%s", err)
 	}
 
 	return nil
@@ -87,7 +89,7 @@ FROM users
 		qry,
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("%s", err)
 	}
 	defer rows.Close()
 
@@ -103,13 +105,13 @@ FROM users
 			&u.CreatedAt,
 		)
 		if err != nil {
-			return users, err
+			return nil, errors.Errorf("%s", err)
 		}
 
 		users = append(users, u)
 	}
 	if err = rows.Err(); err != nil {
-		return users, err
+		return nil, errors.Errorf("%s", err)
 	}
 
 	return users, nil

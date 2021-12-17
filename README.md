@@ -29,6 +29,7 @@ is used as a basis for event-driven cache and search engine population whilst av
 | [v0.9.0](#v0.9.0)   | <ul><li>Adds a Kafka consumer which populates Elasticsearch by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Adds HTTP and gRPC endpoints for searching users by name.</li></ul>                                                                |
 | [v0.10.0](#v0.10.0) | <ul><li>Adds tracing for Redis, Elasticsearch and the Kafka consumers.</li><li>Switch to <a href="https://github.com/segmentio/kafka-go">kafka-go</a>.</li><li>Adds basic metrics and dashboard for the Kafka consumers.</li></ul>                                                   |
 | [v0.11.0](#v0.11.0) | <ul><li>Uses 2 Kafka partitions for CDC for MySQL _users_ table.</li><li>Uses 2 consumers for populating Elasticsearch.</li></ul>                                                                                                                                                    |
+| [v0.12.0](#v0.12.0) | Uses Avro Schema for serialization and deserialization.                                                                                                                                                                                                                              |
 
 ### Set-up
 
@@ -74,6 +75,25 @@ supports both HTTP and [gRPC](https://support.insomnia.rest/article/188-grpc#ove
 Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0),
 [v0.3.0](#v0.3.0), [v0.4.0](#v0.4.0)).
+
+## <a name="v0.12.0"></a>v0.12.0
+
+Uses Avro Schema for the serialization of users during CDC and deserialization when 
+the Kafka consumers populate Redis and Elasticsearch.
+
+### Set-up
+
+There is a delay between running docker-up and all necessary infrastructure being
+available to run the tests and the API. This delay can result in errors when running
+the integration tests. Execute `make run` once the tests run successfully.
+
+    make docker-up
+    make test
+    make run
+
+The schema are visible through Kowl.
+
+![kowl_schema_registry](img/kowl_schema_registry.png)
 
 ## <a name="v0.11.0"></a>v0.11.0
 
@@ -123,7 +143,6 @@ further investigation and/or profiling.
 
   scenarios: (100.00%) 1 scenario, 100 max VUs, 5m30s max duration (incl. graceful stop):
            * constant_request_rate: 50.00 iterations/s for 5m0s (maxVUs: 20-100, gracefulStop: 30s)
-
 
 running (5m00.0s), 000/046 VUs, 14974 complete and 0 interrupted iterations
 constant_request_rate ✓ [======================================] 000/046 VUs  5m0s  50 iters/s

@@ -2,7 +2,6 @@ package consume
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -10,8 +9,9 @@ import (
 	"github.com/bendbennett/go-api-demo/internal/config"
 	prom "github.com/bendbennett/go-api-demo/internal/consume"
 	"github.com/bendbennett/go-api-demo/internal/log"
+	"github.com/mitchellh/mapstructure"
 	"github.com/opentracing/opentracing-go"
-	kafka "github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go"
 )
 
 type consumeFunc func(context.Context, *c, kafka.Message) error
@@ -22,12 +22,17 @@ type reader interface {
 	Stats() kafka.ReaderStats
 }
 
+type decoder interface {
+	Decode([]byte) (interface{}, error)
+}
+
 type c struct {
 	reader        reader
 	consumeFunc   consumeFunc
 	processor     Processor
 	log           log.Logger
 	promID        string
+	decoder       decoder
 	promCollector prom.PromCollector
 }
 
@@ -36,6 +41,7 @@ func NewConsumers(
 	isTracingEnabled bool,
 	promCollector prom.PromCollector,
 	processor Processor,
+	decoder decoder,
 	log log.Logger,
 ) ([]*c, []io.Closer) {
 	var (
@@ -59,6 +65,7 @@ func NewConsumers(
 			promCollector: promCollector,
 			log:           log,
 			promID:        fmt.Sprintf("%v-%v", conf.ReaderConfig.GroupID, i),
+			decoder:       decoder,
 		})
 
 		closers = append(closers, r)
@@ -130,16 +137,22 @@ func consume(
 		return nil
 	}
 
-	var userPayload usrPayload
+	// https://stackoverflow.com/questions/40548909/consume-kafka-avro-messages-in-go
+	nMsg, err := c.decoder.Decode(msg.Value)
+	if err != nil {
+		return err
+	}
 
-	err := json.Unmarshal(msg.Value, &userPayload)
+	m := m{}
+
+	err = mapstructure.Decode(nMsg, &m)
 	if err != nil {
 		return err
 	}
 
 	input := inputData{
-		Before: userPayload.Payload.Before,
-		After:  userPayload.Payload.After,
+		Before: m.Before.Value,
+		After:  m.After.Value,
 	}
 
 	err = c.processor.Process(ctx, input)
@@ -172,20 +185,20 @@ func wrappedConsume(
 	return consume(ctx, c, msg)
 }
 
-type usrPayload struct {
-	Payload payload `json:"payload"`
+type m struct {
+	Before val
+	After  val
 }
 
-type payload struct {
-	Before usr `json:"before"`
-	After  usr `json:"after"`
+type val struct {
+	Value usr `mapstructure:"go_api_demo_db.go_api_demo.users.Value"`
 }
 
 type usr struct {
-	ID        string `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	CreatedAt int64  `json:"created_at"`
+	ID        string `mapstructure:"id"`
+	FirstName string `mapstructure:"first_name"`
+	LastName  string `mapstructure:"last_name"`
+	CreatedAt int64  `mapstructure:"created_at"`
 }
 
 type inputData struct {

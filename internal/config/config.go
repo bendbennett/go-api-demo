@@ -25,6 +25,7 @@ type Config struct {
 	Redis              redis.Options
 	Elasticsearch      elasticsearch.Config
 	TopicConfigs       TopicConfigs
+	SchemaRegistry     SchemaRegistry
 	UserConsumerCache  KafkaConsumer
 	UserConsumerSearch KafkaConsumer
 	Metrics            Metrics
@@ -64,6 +65,12 @@ type KafkaConsumer struct {
 type TopicConfigs struct {
 	Brokers []string
 	Conf    []kafka.TopicConfig
+}
+
+type SchemaRegistry struct {
+	Endpoints     map[string]string
+	Domain        string
+	ClientTimeout time.Duration
 }
 
 // New returns a populated Config struct with values
@@ -226,6 +233,39 @@ func New() Config {
 						},
 					},
 				},
+			},
+		},
+		SchemaRegistry: SchemaRegistry{
+			ClientTimeout: GetEnvAsDuration(
+				"KAFKA_SCHEMA_REGISTRY_CLIENT_TIMEOUT",
+				3*time.Second),
+			Domain: fmt.Sprintf(
+				"%v://%v:%v",
+				GetEnvAsString(
+					"KAFKA_SCHEMA_REGISTRY_PROTOCOL",
+					"http",
+				),
+				GetEnvAsString(
+					"KAFKA_SCHEMA_REGISTRY_DOMAIN",
+					"localhost",
+				),
+				GetEnvAsString(
+					"KAFKA_SCHEMA_REGISTRY_PORT",
+					"8081",
+				),
+			),
+			Endpoints: map[string]string{
+				"usersValue": fmt.Sprintf(
+					"/subjects/%v/versions/%v",
+					GetEnvAsString(
+						"KAFKA_SCHEMA_REGISTRY_USERS_VALUE",
+						"go_api_demo_db.go-api-demo.users-value",
+					),
+					GetEnvAsString(
+						"KAFKA_SCHEMA_REGISTRY_USERS_VALUE_VERSION",
+						"1",
+					),
+				),
 			},
 		},
 		HTTPPort: GetEnvAsInt(

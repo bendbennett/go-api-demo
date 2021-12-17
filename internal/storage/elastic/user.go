@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 
@@ -82,7 +84,7 @@ func (s *userSearch) Create(
 
 		j, err := json.Marshal(eU)
 		if err != nil {
-			return err
+			return errors.Errorf("%s", err)
 		}
 
 		wg.Add(1)
@@ -126,7 +128,11 @@ func (s *userSearch) Create(
 			case nil:
 				err = resp.err
 			default:
-				err = fmt.Errorf("%w, %s", resp.err, err)
+				err = fmt.Errorf(
+					"%w, %s",
+					resp.err,
+					errors.Errorf("%s", err),
+				)
 			}
 		}
 	}
@@ -146,14 +152,14 @@ func (s *userSearch) Search(
 
 	resp, err := req.Do(ctx, s.search)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("%s", err)
 	}
 
 	if resp.IsError() {
 		var e = e{}
 
 		if err := json.NewDecoder(resp.Body).Decode(&e); err != nil {
-			return nil, err
+			return nil, errors.Errorf("%s", err)
 		}
 
 		err := fmt.Errorf(
@@ -176,7 +182,7 @@ func (s *userSearch) Search(
 	h := h{}
 
 	if err = json.NewDecoder(resp.Body).Decode(&h); err != nil {
-		return nil, err
+		return nil, errors.Errorf("%s", err)
 	}
 
 	var users []user.User
@@ -241,10 +247,11 @@ func (s *instrumentSearch) Perform(request *http.Request) (*http.Response, error
 			request.URL.Path,
 		),
 	)
+	defer span.Finish()
+
 	ext.Component.Set(span, "database/elasticsearch")
 	ext.HTTPMethod.Set(span, request.Method)
 	ext.HTTPUrl.Set(span, request.URL.Path)
-	defer span.Finish()
 
 	return s.search.Perform(request)
 }

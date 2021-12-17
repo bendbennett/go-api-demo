@@ -3,10 +3,11 @@ package redis
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -40,7 +41,7 @@ func NewUserCache(
 
 	err := rdb.Ping(context.Background()).Err()
 	if err != nil {
-		panic(err)
+		return nil, nil, err
 	}
 
 	if isTracingEnabled {
@@ -62,21 +63,21 @@ func (c *userCache) Create(ctx context.Context, users ...user.User) error {
 	for _, u := range users {
 		mUsr, err := json.Marshal(u)
 		if err != nil {
-			return err
+			return errors.Errorf("%s", err)
 		}
 
 		usrMap[fmt.Sprintf("%v:%v", usr, u.ID)] = mUsr
 	}
 
-	return c.cache.MSet(ctx, usrMap).Err()
+	err := c.cache.MSet(ctx, usrMap).Err()
+	if err != nil {
+		return errors.Errorf("%s", err)
+	}
+
+	return nil
 }
 
 func (c *userCache) Read(ctx context.Context) ([]user.User, error) {
-	var (
-		users []user.User
-		keys  []string
-	)
-
 	iter := c.cache.Scan(
 		ctx,
 		0,
@@ -84,16 +85,18 @@ func (c *userCache) Read(ctx context.Context) ([]user.User, error) {
 		0,
 	).Iterator()
 
+	var keys []string
+
 	for iter.Next(ctx) {
 		keys = append(keys, iter.Val())
 	}
 
 	if err := iter.Err(); err != nil {
-		return users, err
+		return nil, errors.Errorf("%s", err)
 	}
 
 	if len(keys) == 0 {
-		return users, nil
+		return nil, nil
 	}
 
 	mg := c.cache.MGet(
@@ -101,7 +104,9 @@ func (c *userCache) Read(ctx context.Context) ([]user.User, error) {
 		keys...,
 	)
 
-	for _, v := range mg.Val() {
+	users := make([]user.User, len(mg.Val()))
+
+	for k, v := range mg.Val() {
 		u := user.User{}
 
 		if _, ok := v.(string); !ok {
@@ -109,10 +114,10 @@ func (c *userCache) Read(ctx context.Context) ([]user.User, error) {
 		}
 
 		if err := json.Unmarshal([]byte(v.(string)), &u); err != nil {
-			return users, err
+			return users, errors.Errorf("%s", err)
 		}
 
-		users = append(users, u)
+		users[k] = u
 	}
 
 	return users, nil

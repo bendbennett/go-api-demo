@@ -67,7 +67,7 @@ docker-up: .env
 
 .PHONY: docker-down
 docker-down:
-	docker rm --force -v go-api-demo-connect go-api-demo-grafana go-api-demo-prometheus go-api-demo-jaeger go-api-demo-redis go-api-demo-elastic go-api-demo-zookeeper go-api-demo-kowl go-api-demo-db go-api-demo-kafka
+	docker rm --force -v go-api-demo-connect go-api-demo-grafana go-api-demo-prometheus go-api-demo-jaeger go-api-demo-redis go-api-demo-elastic go-api-demo-zookeeper go-api-demo-kowl go-api-demo-db go-api-demo-kafka go-api-demo-schema-registry
 	docker compose -f docker/dev/docker-compose.yml down
 
 ################################################################################
