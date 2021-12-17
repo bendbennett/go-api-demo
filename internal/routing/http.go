@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/pprof"
 
 	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/gorilla/mux"
@@ -58,6 +59,11 @@ func NewHTTPRouter(
 	router.HandleFunc(
 		"/metrics",
 		promhttp.Handler().ServeHTTP,
+	)
+
+	router.HandleFunc(
+		"/debug/pprof/profile",
+		pprof.Profile,
 	)
 
 	routes := []route{

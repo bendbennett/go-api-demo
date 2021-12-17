@@ -14,11 +14,11 @@ import (
 	sqlopentracing "github.com/luna-duclos/instrumentedsql/opentracing"
 )
 
-func NewUserStorage(
+func newUserStorage(
 	mySQLConf *sqldriver.Config,
 	storageConf config.Storage,
 	isTracingEnabled bool,
-) (user.CommandQuery, io.Closer, error) {
+) (user.CreatorReader, io.Closer, error) {
 	var (
 		handle interface{}
 		err    error

@@ -94,7 +94,7 @@ func (s *userSearch) Create(
 				Index:      usrs,
 				DocumentID: uID,
 				Body:       strings.NewReader(string(j)),
-				Refresh:    "true",
+				Refresh:    "false",
 			}
 
 			resp, err := req.Do(ctx, s.search)

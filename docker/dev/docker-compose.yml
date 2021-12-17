@@ -63,6 +63,7 @@ services:
       - "9092:9092"
     environment:
       - ADVERTISED_HOST_NAME=${HOST_IP}
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
       - ZOOKEEPER_CONNECT=go-api-demo-zookeeper:2181
 
   go-api-demo-connect:
@@ -99,9 +100,15 @@ services:
 
   go-api-demo-elasticsearch:
     container_name: go-api-demo-elastic
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.2
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.16.1
     environment:
       - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     ports:
       - "9200:9200"
       - "9300:9300"

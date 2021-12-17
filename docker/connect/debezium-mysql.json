@@ -2,7 +2,9 @@
   "name": "go-api-demo-connector",
   "config": {
     "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+
     "tasks.max": "1",
+
     "database.hostname": "go-api-demo-db",
     "database.port": "3306",
     "database.user": "root",
@@ -12,6 +14,19 @@
     "database.include.list": "go-api-demo",
     "database.history.kafka.bootstrap.servers": "go-api-demo-kafka:9092",
     "database.history.kafka.topic": "schema-changes.go-api-demo",
-    "database.allowPublicKeyRetrieval":"true"
+    "database.allowPublicKeyRetrieval":"true",
+
+    "topic.creation.default.replication.factor": 1,
+    "topic.creation.default.partitions": 1,
+    "topic.creation.default.cleanup.policy": "compact",
+    "topic.creation.default.compression.type": "lz4",
+
+    "topic.creation.groups": "users",
+
+    "topic.creation.users.include": "go_api_demo_db\\.go-api-demo\\.users",
+    "topic.creation.users.replication.factor": 1,
+    "topic.creation.users.partitions": 2,
+    "topic.creation.users.cleanup.policy": "compact",
+    "topic.creation.users.compression.type": "producer"
   }
 }

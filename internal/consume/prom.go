@@ -16,7 +16,7 @@ func NewConsumerProm(metricsEnabled bool) (Prom, error) {
 			Name: "consumer_messages_total",
 			Help: "Total number of Kafka messages consumed regardless of success or failure",
 		},
-		[]string{"type", "processor"},
+		[]string{"type", "processor", "consumer"},
 	)
 
 	err := prometheus.Register(msgCounter)
@@ -31,7 +31,7 @@ func NewConsumerProm(metricsEnabled bool) (Prom, error) {
 			Name: "consumer_queue_length",
 			Help: "Queue length of Kafka consumer",
 		},
-		[]string{"type", "processor"},
+		[]string{"type", "processor", "consumer"},
 	)
 
 	err = prometheus.Register(queueLengthGauge)
@@ -46,7 +46,7 @@ func NewConsumerProm(metricsEnabled bool) (Prom, error) {
 			Name: "consumer_queue_capacity",
 			Help: "Queue capacity of Kafka consumer",
 		},
-		[]string{"type", "processor"},
+		[]string{"type", "processor", "consumer"},
 	)
 
 	err = prometheus.Register(queueCapacityGauge)
@@ -61,7 +61,7 @@ func NewConsumerProm(metricsEnabled bool) (Prom, error) {
 			Name: "consumer_lag",
 			Help: "Lag of Kafka consumer",
 		},
-		[]string{"type", "processor"},
+		[]string{"type", "processor", "consumer"},
 	)
 
 	err = prometheus.Register(lagGauge)
@@ -113,20 +113,20 @@ type Stats struct {
 	Lag           int64
 }
 
-func (c PromCollector) Update(stats Stats) {
+func (c PromCollector) Update(stats Stats, consumer string) {
 	if c.Prom.MsgCounter != nil {
-		c.Prom.MsgCounter.WithLabelValues(c.Type, c.Processor).Add(float64(stats.Messages))
+		c.Prom.MsgCounter.WithLabelValues(c.Type, c.Processor, consumer).Add(float64(stats.Messages))
 	}
 
 	if c.Prom.QueueLengthGauge != nil {
-		c.Prom.QueueLengthGauge.WithLabelValues(c.Type, c.Processor).Set(float64(stats.QueueLength))
+		c.Prom.QueueLengthGauge.WithLabelValues(c.Type, c.Processor, consumer).Set(float64(stats.QueueLength))
 	}
 
 	if c.Prom.QueueCapacityGauge != nil {
-		c.Prom.QueueCapacityGauge.WithLabelValues(c.Type, c.Processor).Set(float64(stats.QueueCapacity))
+		c.Prom.QueueCapacityGauge.WithLabelValues(c.Type, c.Processor, consumer).Set(float64(stats.QueueCapacity))
 	}
 
 	if c.Prom.LagGauge != nil {
-		c.Prom.LagGauge.WithLabelValues(c.Type, c.Processor).Set(float64(stats.Lag))
+		c.Prom.LagGauge.WithLabelValues(c.Type, c.Processor, consumer).Set(float64(stats.Lag))
 	}
 }

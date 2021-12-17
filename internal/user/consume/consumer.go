@@ -3,6 +3,7 @@ package consume
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
@@ -26,31 +27,44 @@ type c struct {
 	consumeFunc   consumeFunc
 	processor     Processor
 	log           log.Logger
+	promID        string
 	promCollector prom.PromCollector
 }
 
-func NewConsumer(
+func NewConsumers(
 	conf config.KafkaConsumer,
 	isTracingEnabled bool,
 	promCollector prom.PromCollector,
 	processor Processor,
 	log log.Logger,
-) (*c, io.Closer) {
-	r := kafka.NewReader(conf.ReaderConfig)
+) ([]*c, []io.Closer) {
+	var (
+		consumers []*c
+		closers   []io.Closer
+	)
 
-	cf := consume
+	for i := 0; i < conf.Num; i++ {
+		r := kafka.NewReader(conf.ReaderConfig)
 
-	if isTracingEnabled {
-		cf = wrappedConsume
+		cf := consume
+
+		if isTracingEnabled {
+			cf = wrappedConsume
+		}
+
+		consumers = append(consumers, &c{
+			reader:        r,
+			consumeFunc:   cf,
+			processor:     processor,
+			promCollector: promCollector,
+			log:           log,
+			promID:        fmt.Sprintf("%v-%v", conf.ReaderConfig.GroupID, i),
+		})
+
+		closers = append(closers, r)
 	}
 
-	return &c{
-		reader:        r,
-		consumeFunc:   cf,
-		processor:     processor,
-		promCollector: promCollector,
-		log:           log,
-	}, r
+	return consumers, closers
 }
 
 // Run is executed in a loop to continuously consume messages.
@@ -75,7 +89,7 @@ func (c *c) Run(ctx context.Context) error {
 					Lag:           kafkaStats.Lag,
 				}
 
-				c.promCollector.Update(stats)
+				c.promCollector.Update(stats, c.promID)
 			}
 		}
 	}()

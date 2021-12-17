@@ -480,6 +480,97 @@
       "yBucketSize": null
     },
     {
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 7
+      },
+      "id": 12,
+      "maxDataPoints": 500,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "hidden",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "histogram_quantile(0.99,\n    sum(rate(\n        http_request_duration_seconds_bucket{method=\"POST\"}[$__interval]\n    )) by (method,le)\n)",
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "POST /user 99th percentile",
+      "type": "timeseries"
+    },
+    {
       "cards": {
         "cardPadding": null,
         "cardRound": null
@@ -496,7 +587,7 @@
       "gridPos": {
         "h": 7,
         "w": 6,
-        "x": 12,
+        "x": 18,
         "y": 7
       },
       "heatmap": {},
@@ -554,97 +645,6 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "smooth",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "line+area"
-            }
-          },
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "#EAB839",
-                "value": 0.5
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 6,
-        "x": 18,
-        "y": 7
-      },
-      "id": 12,
-      "maxDataPoints": 500,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "hidden",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "histogram_quantile(0.99,\n    sum(rate(\n        http_request_duration_seconds_bucket{method=\"POST\"}[1m]\n    )) by (method,le)\n)",
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
-      "title": "POST /user 99th percentile",
-      "type": "timeseries"
-    },
-    {
-      "datasource": null,
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
@@ -688,36 +688,6 @@
           }
         },
         "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "{instance=\"host.docker.internal:3000\", job=\"go-api-demo\", processor=\"cache\", type=\"user\"}"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "#07aded",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "{instance=\"host.docker.internal:3000\", job=\"go-api-demo\", processor=\"search\", type=\"user\"}"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "dark-orange",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
           {
             "matcher": {
               "id": "byName",
@@ -779,7 +749,7 @@
         },
         {
           "exemplar": true,
-          "expr": "rate(consumer_messages_total{processor=\"search\"}[$__interval])",
+          "expr": "sum by (processor) (rate(consumer_messages_total{processor=\"search\"}[$__interval]))",
           "hide": false,
           "interval": "",
           "legendFormat": "{{processor}}",
@@ -856,7 +826,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{instance=\"host.docker.internal:3000\", job=\"go-api-demo\", processor=\"cache\", type=\"user\"}"
+              "options": "{consumer=\"user-consumer-cache-group-id-0\", instance=\"host.docker.internal:3000\", job=\"go-api-demo\", processor=\"cache\", type=\"user\"}"
             },
             "properties": [
               {
@@ -871,7 +841,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "{instance=\"host.docker.internal:3000\", job=\"go-api-demo\", processor=\"search\", type=\"user\"}"
+              "options": "{processor=\"search\"}"
             },
             "properties": [
               {
@@ -913,7 +883,7 @@
         },
         {
           "exemplar": true,
-          "expr": "(consumer_queue_length{processor=\"search\"}/consumer_queue_capacity{processor=\"search\"})*100",
+          "expr": "avg by (processor)((consumer_queue_length{processor=\"search\"}/consumer_queue_capacity{processor=\"search\"})*100)",
           "hide": false,
           "interval": "",
           "legendFormat": "",
@@ -981,7 +951,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "consumer_lag{instance=\"host.docker.internal:3000\", job=\"go-api-demo\", processor=\"cache\", type=\"user\"}"
+              "options": "consumer_lag{consumer=\"user-consumer-cache-group-id-0\", instance=\"host.docker.internal:3000\", job=\"go-api-demo\", processor=\"cache\", type=\"user\"}"
             },
             "properties": [
               {
@@ -996,7 +966,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "consumer_lag{instance=\"host.docker.internal:3000\", job=\"go-api-demo\", processor=\"search\", type=\"user\"}"
+              "options": "sum(consumer_lag{processor=\"search\"})"
             },
             "properties": [
               {
@@ -1038,7 +1008,7 @@
         },
         {
           "exemplar": true,
-          "expr": "consumer_lag{processor=\"search\"}",
+          "expr": "sum(consumer_lag{processor=\"search\"})",
           "hide": false,
           "interval": "",
           "legendFormat": "",
@@ -1049,7 +1019,7 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "5s",
+  "refresh": "",
   "schemaVersion": 31,
   "style": "dark",
   "tags": [],
@@ -1057,12 +1027,12 @@
     "list": []
   },
   "time": {
-    "from": "now-10m",
+    "from": "now-8m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "user",
   "uid": "gzDHg9W7z",
-  "version": 12
+  "version": 1
 }

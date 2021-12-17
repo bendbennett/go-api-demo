@@ -24,6 +24,7 @@ type Config struct {
 	Storage            Storage
 	Redis              redis.Options
 	Elasticsearch      elasticsearch.Config
+	TopicConfigs       TopicConfigs
 	UserConsumerCache  KafkaConsumer
 	UserConsumerSearch KafkaConsumer
 	Metrics            Metrics
@@ -57,6 +58,12 @@ type Message struct {
 type KafkaConsumer struct {
 	ReaderConfig kafka.ReaderConfig
 	IsEnabled    bool
+	Num          int
+}
+
+type TopicConfigs struct {
+	Brokers []string
+	Conf    []kafka.TopicConfig
 }
 
 // New returns a populated Config struct with values
@@ -155,6 +162,10 @@ func New() Config {
 				"KAFKA_USER_CONSUMER_CACHE_IS_ENABLED",
 				false,
 			),
+			Num: GetEnvAsInt(
+				"KAFKA_USER_CONSUMER_CACHE_NUM",
+				1,
+			),
 		},
 		UserConsumerSearch: KafkaConsumer{
 			ReaderConfig: kafka.ReaderConfig{
@@ -188,6 +199,34 @@ func New() Config {
 				"KAFKA_USER_CONSUMER_SEARCH_IS_ENABLED",
 				false,
 			),
+			Num: GetEnvAsInt(
+				"KAFKA_USER_CONSUMER_SEARCH_NUM",
+				2,
+			),
+		},
+		TopicConfigs: TopicConfigs{
+			Brokers: GetEnvAsSliceOfStrings(
+				"KAFKA_BROKERS",
+				",",
+				[]string{},
+			),
+			Conf: []kafka.TopicConfig{
+				{
+					Topic:             "go_api_demo_db.go-api-demo.users",
+					NumPartitions:     2,
+					ReplicationFactor: 1,
+					ConfigEntries: []kafka.ConfigEntry{
+						{
+							ConfigName:  "cleanup.policy",
+							ConfigValue: "compact",
+						},
+						{
+							ConfigName:  "compression.type",
+							ConfigValue: "producer",
+						},
+					},
+				},
+			},
 		},
 		HTTPPort: GetEnvAsInt(
 			"HTTP_PORT",

@@ -16,18 +16,19 @@ is used as a basis for event-driven cache and search engine population whilst av
 
 ### Tags
 
-| Tag | Implementation | 
-| --- | --- |
-| [v0.1.0](#v0.1.0) | Basic HTTP and gRPC server exposing hello world endpoints. |
-| [v0.2.0](#v0.2.0) | Adds HTTP and gRPC endpoints to create users stored in-memory. |
-| [v0.3.0](#v0.3.0) | Stores created users either in-memory or in MySQL. |
-| [v0.4.0](#v0.4.0) | Adds HTTP and gRPC endpoints to retrieve/read users. |
-| [v0.5.0](#v0.5.0) | <ul><li>Adds Prometheus metrics and Grafana dashboard visualisation for HTTP requests.</li><li>Includes k6 script to stress-test HTTP requests to retrieve/read users and provides a comparison of retrieving users from in-memory storage and MySQL.</li></ul>    
-| [v0.6.0](#v0.6.0) | <ul><li>Adds tracing with Jaeger to provide additional insight into slow request processing and errors observed when stress testing HTTP requests to retrieve/read users.</li><li>Adds metrics for gRPC requests.</li></ul>
-| [v0.7.0](#v0.7.0) | Adds Change Data Capture to publish events into Kafka when MySQL is mutated.  
-| [v0.8.0](#v0.8.0) | <ul><li>Adds a Kafka consumer which populates Redis by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Includes stress-testing of HTTP requests to retrieve/read users, comparing performance of retrieving users from Redis and MySQL.</li></ul> |
-| [v0.9.0](#v0.9.0) | <ul><li>Adds a Kafka consumer which populates Elasticsearch by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Adds HTTP and gRPC endpoints for searching users by name.</li></ul> |
-| [v0.10.0](#v0.10.0) | <ul><li>Adds tracing for Redis, Elasticsearch and the Kafka consumers.</li><li>Switch to <a href="https://github.com/segmentio/kafka-go">kafka-go</a>.</li><li>Adds basic metrics and dashboard for the Kafka consumers.</li></ul> |
+| Tag                 | Implementation                                                                                                                                                                                                                                                                       | 
+|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [v0.1.0](#v0.1.0)   | Basic HTTP and gRPC server exposing hello world endpoints.                                                                                                                                                                                                                           |
+| [v0.2.0](#v0.2.0)   | Adds HTTP and gRPC endpoints to create users stored in-memory.                                                                                                                                                                                                                       |
+| [v0.3.0](#v0.3.0)   | Stores created users either in-memory or in MySQL.                                                                                                                                                                                                                                   |
+| [v0.4.0](#v0.4.0)   | Adds HTTP and gRPC endpoints to retrieve/read users.                                                                                                                                                                                                                                 |
+| [v0.5.0](#v0.5.0)   | <ul><li>Adds Prometheus metrics and Grafana dashboard visualisation for HTTP requests.</li><li>Includes k6 script to stress-test HTTP requests to retrieve/read users and provides a comparison of retrieving users from in-memory storage and MySQL.</li></ul>                      |
+| [v0.6.0](#v0.6.0)   | <ul><li>Adds tracing with Jaeger to provide additional insight into slow request processing and errors observed when stress testing HTTP requests to retrieve/read users.</li><li>Adds metrics for gRPC requests.</li></ul>                                                          |
+| [v0.7.0](#v0.7.0)   | Adds Change Data Capture to publish events into Kafka when MySQL is mutated.                                                                                                                                                                                                         |
+| [v0.8.0](#v0.8.0)   | <ul><li>Adds a Kafka consumer which populates Redis by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Includes stress-testing of HTTP requests to retrieve/read users, comparing performance of retrieving users from Redis and MySQL.</li></ul> |
+| [v0.9.0](#v0.9.0)   | <ul><li>Adds a Kafka consumer which populates Elasticsearch by processing Kafka events generated when the MySQL _users_ table is mutated.</li><li>Adds HTTP and gRPC endpoints for searching users by name.</li></ul>                                                                |
+| [v0.10.0](#v0.10.0) | <ul><li>Adds tracing for Redis, Elasticsearch and the Kafka consumers.</li><li>Switch to <a href="https://github.com/segmentio/kafka-go">kafka-go</a>.</li><li>Adds basic metrics and dashboard for the Kafka consumers.</li></ul>                                                   |
+| [v0.11.0](#v0.11.0) | <ul><li>Uses 2 Kafka partitions for CDC for MySQL _users_ table.</li><li>Uses 2 consumers for populating Elasticsearch.</li></ul>                                                                                                                                                    |
 
 ### Set-up
 
@@ -74,7 +75,83 @@ Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0),
 [v0.3.0](#v0.3.0), [v0.4.0](#v0.4.0)).
 
+## <a name="v0.11.0"></a>v0.11.0
+
+Adds 2 Kafka partitions for CDC of MySQL _users_ table.
+
+Adds 2 Kafka consumers for populating Elasticsearch.
+
+### Set-up
+
+There is a delay between running docker-up and all necessary infrastructure being 
+available to run the tests and the API. This delay can result in errors when running
+the integration tests. Execute `make run` once the tests run successfully.  
+
+    make docker-up
+    make test
+    make run
+
+Running (see [docker](#k6_docker_post) or [local](#k6_local_post)) the [k6](https://k6.io/) script will send 50
+requests per second (RPS) to the `POST /user` endpoint for 5 minutes.
+
+#### <a name="k6_docker_post"></a>Docker
+
+     docker run -e HOST=host.docker.internal -i loadimpact/k6 run - <k6/post.js
+
+#### <a name="k6_local_post"></a>Local
+
+[Install k6](https://k6.io/docs/getting-started/installation/) and run:
+
+    k6 run -e HOST=localhost k6/post.js
+
+### Load Testing
+
+![user_post_consumer_2](img/user_post_consumer_2.png)
+
+The consumers populating Redis and Elasticsearch are able to process Kafka events 
+at a sufficient rate to prevent any lag. 
+
+There are a couple of spikes in the 99th percentile request duration that warrant 
+further investigation and/or profiling.
+
+#### k6 Output
+
+```
+  execution: local
+     script: k6/post.js
+     output: -
+
+  scenarios: (100.00%) 1 scenario, 100 max VUs, 5m30s max duration (incl. graceful stop):
+           * constant_request_rate: 50.00 iterations/s for 5m0s (maxVUs: 20-100, gracefulStop: 30s)
+
+
+running (5m00.0s), 000/046 VUs, 14974 complete and 0 interrupted iterations
+constant_request_rate ✓ [======================================] 000/046 VUs  5m0s  50 iters/s
+
+     ✓ status was 200
+
+     checks.........................: 100.00% ✓ 14974     ✗ 0
+     data_received..................: 3.5 MB  12 kB/s
+     data_sent......................: 2.2 MB  7.3 kB/s
+     dropped_iterations.............: 26      0.086671/s
+     http_req_blocked...............: avg=7.55µs  min=3µs    med=5µs     max=1.19ms p(90)=8µs     p(95)=10µs
+     http_req_connecting............: avg=965ns   min=0s     med=0s      max=1.11ms p(90)=0s      p(95)=0s
+     http_req_duration..............: avg=24.04ms min=7.22ms med=14.54ms max=1.29s  p(90)=31.68ms p(95)=49.94ms
+       { expected_response:true }...: avg=24.04ms min=7.22ms med=14.54ms max=1.29s  p(90)=31.68ms p(95)=49.94ms
+     http_req_failed................: 0.00%   ✓ 0         ✗ 14974
+     http_req_receiving.............: avg=80.84µs min=19µs   med=73µs    max=1.44ms p(90)=119µs   p(95)=138µs
+     http_req_sending...............: avg=34.35µs min=13µs   med=31µs    max=693µs  p(90)=47µs    p(95)=59µs
+     http_req_tls_handshaking.......: avg=0s      min=0s     med=0s      max=0s     p(90)=0s      p(95)=0s
+     http_req_waiting...............: avg=23.93ms min=7.03ms med=14.43ms max=1.29s  p(90)=31.59ms p(95)=49.79ms
+     http_reqs......................: 14974   49.915646/s
+     iteration_duration.............: avg=24.29ms min=7.47ms med=14.78ms max=1.29s  p(90)=31.91ms p(95)=50.2ms
+     iterations.....................: 14974   49.915646/s
+     vus............................: 46      min=20      max=46
+     vus_max........................: 46      min=20      max=46
+```
+
 ## <a name="v0.10.0"></a>v0.10.0
+
 Adds tracing for Redis, Elasticsearch and the Kafka consumers that populate these data stores.
 
 Adds basic metrics for the Kafka consumers. 

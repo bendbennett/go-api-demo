@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/segmentio/kafka-go"
-
 	"github.com/elastic/go-elasticsearch/v7"
 	"github.com/elastic/go-elasticsearch/v7/esapi"
 	"github.com/joho/godotenv"
@@ -70,17 +68,11 @@ func Test_E2E(t *testing.T) {
 
 func env(t *testing.T) {
 	env := map[string]string{
-		"HTTP_PORT":                                    "3001",
-		"GRPC_PORT":                                    "1235",
-		"TRACING_ENABLED":                              "false",
-		"LOGGING_PRODUCTION":                           "true",
-		"METRICS_ENABLED":                              "false",
-		"KAFKA_USER_CONSUMER_CACHE_GROUP_ID":           "user-consumer-cache-group-id-test",
-		"KAFKA_USER_CONSUMER_CACHE_MAX_WAIT":           "1s",
-		"KAFKA_USER_CONSUMER_CACHE_REBALANCE_TIMEOUT":  "1s",
-		"KAFKA_USER_CONSUMER_SEARCH_GROUP_ID":          "user-consumer-search-group-id-test",
-		"KAFKA_USER_CONSUMER_SEARCH_MAX_WAIT":          "1s",
-		"KAFKA_USER_CONSUMER_SEARCH_REBALANCE_TIMEOUT": "1s",
+		"HTTP_PORT":          "3001",
+		"GRPC_PORT":          "1235",
+		"TRACING_ENABLED":    "false",
+		"LOGGING_PRODUCTION": "true",
+		"METRICS_ENABLED":    "false",
 	}
 
 	for k, v := range env {
@@ -95,7 +87,7 @@ func env(t *testing.T) {
 // nolint: gocyclo
 func purge(t *testing.T) {
 	wg := sync.WaitGroup{}
-	wg.Add(5)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
@@ -203,6 +195,10 @@ func purge(t *testing.T) {
 				t.Error(err)
 			}
 
+			if resp.StatusCode == http.StatusNotFound {
+				break
+			}
+
 			var r map[string]interface{}
 
 			if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
@@ -219,62 +215,6 @@ func purge(t *testing.T) {
 
 			time.Sleep(10 * time.Millisecond)
 		}
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		reader := kafka.NewReader(
-			kafka.ReaderConfig{
-				Brokers:          config.GetEnvAsSliceOfStrings("KAFKA_BROKERS", ",", []string{}),
-				GroupID:          config.GetEnvAsString("KAFKA_USER_CONSUMER_CACHE_GROUP_ID", ""),
-				Topic:            config.GetEnvAsString("KAFKA_USER_CONSUMER_CACHE_TOPIC", ""),
-				RebalanceTimeout: config.GetEnvAsDuration("KAFKA_USER_CONSUMER_CACHE_REBALANCE_TIMEOUT", time.Second),
-				MaxWait:          config.GetEnvAsDuration("KAFKA_USER_CONSUMER_CACHE_MAX_WAIT", time.Second),
-			},
-		)
-		defer reader.Close()
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-
-		for {
-			_, err := reader.ReadMessage(ctx)
-			if err != nil {
-				break
-			}
-
-			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
-		}
-
-		cancel()
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		reader := kafka.NewReader(
-			kafka.ReaderConfig{
-				Brokers:          config.GetEnvAsSliceOfStrings("KAFKA_BROKERS", ",", []string{}),
-				GroupID:          config.GetEnvAsString("KAFKA_USER_CONSUMER_SEARCH_GROUP_ID", ""),
-				Topic:            config.GetEnvAsString("KAFKA_USER_CONSUMER_SEARCH_TOPIC", ""),
-				RebalanceTimeout: config.GetEnvAsDuration("KAFKA_USER_CONSUMER_SEARCH_REBALANCE_TIMEOUT", time.Second),
-				MaxWait:          config.GetEnvAsDuration("KAFKA_USER_CONSUMER_SEARCH_MAX_WAIT", time.Second),
-			},
-		)
-		defer reader.Close()
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-
-		for {
-			_, err := reader.ReadMessage(ctx)
-			if err != nil {
-				break
-			}
-
-			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
-		}
-
-		cancel()
 	}()
 
 	wg.Wait()
@@ -470,6 +410,8 @@ func userSearchHTTP(t *testing.T, httpClient *httpClient) {
 	// We require a for loop here as the length of time it takes
 	// for the DB mutation events to be published into Kafka and
 	// processed is non-deterministic.
+	// We also require a check for a 404 as the index is only
+	// created when the first user doc is created in elasticsearch.
 	for i := 0; i < maxAttempts; i++ {
 		statusCode, body, err := httpClient.doRequest(httpRequest{
 			method: http.MethodGet,
@@ -477,6 +419,14 @@ func userSearchHTTP(t *testing.T, httpClient *httpClient) {
 		})
 
 		require.NoError(t, err)
+
+		retryCodes := map[int]struct{}{http.StatusNotFound: {}, http.StatusInternalServerError: {}}
+
+		if _, ok := retryCodes[statusCode]; ok {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+
 		assert.Equal(t, http.StatusOK, statusCode)
 
 		err = json.Unmarshal(body, &usersHTTP)

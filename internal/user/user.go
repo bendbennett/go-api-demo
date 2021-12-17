@@ -12,7 +12,7 @@ type User struct {
 	LastName  string
 }
 
-type CommandQuery interface {
+type CreatorReader interface {
 	Creator
 	Reader
 }
@@ -23,4 +23,13 @@ type Creator interface {
 
 type Reader interface {
 	Read(context.Context) ([]User, error)
+}
+
+type CreatorSearcher interface {
+	Creator
+	Searcher
+}
+
+type Searcher interface {
+	Search(ctx context.Context, searchTerm string) ([]User, error)
 }
