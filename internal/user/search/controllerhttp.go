@@ -44,7 +44,7 @@ func (c *httpController) Search(
 
 	searchTerm, err := c.sanitise(params["searchTerm"])
 	if err != nil {
-		c.logger.WithSpan(ctx).Errorf("clean string failed: %v", err)
+		c.logger.ErrorfContext(ctx, "clean string failed: %v", err)
 		response.Write500Response(
 			w,
 		)
@@ -53,7 +53,7 @@ func (c *httpController) Search(
 
 	if len(searchTerm) < searchTermMinLen {
 		msg := fmt.Sprintf("search term must be >= %v chars", searchTermMinLen)
-		c.logger.WithSpan(ctx).Infof(msg)
+		c.logger.InfofContext(ctx, msg)
 		response.WriteErrorResponse(
 			w,
 			http.StatusBadRequest,
@@ -69,7 +69,7 @@ func (c *httpController) Search(
 			searchTerm,
 		)
 	if err != nil {
-		c.logger.WithSpan(ctx).Error(err)
+		c.logger.ErrorContext(ctx, err)
 		response.Write500Response(w)
 		return
 	}

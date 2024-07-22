@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/XSAM/otelsql"
 	"github.com/bendbennett/go-api-demo/internal/config"
 	"github.com/bendbennett/go-api-demo/internal/storage/memory"
 	"github.com/bendbennett/go-api-demo/internal/storage/mysql"
 	"github.com/bendbennett/go-api-demo/internal/user"
 	sqldriver "github.com/go-sql-driver/mysql"
-	sqltracing "github.com/luna-duclos/instrumentedsql"
-	sqlopentracing "github.com/luna-duclos/instrumentedsql/opentracing"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
 func newUserStorage(
 	mySQLConf *sqldriver.Config,
 	storageConf config.Storage,
-	isTracingEnabled bool,
+	telemetryEnabled bool,
 ) (user.CreatorReader, io.Closer, error) {
 	var (
 		handle interface{}
@@ -27,7 +27,7 @@ func newUserStorage(
 	if storageConf.Type == config.StorageTypeSQL {
 		handle, err = sqlDB(
 			mySQLConf,
-			isTracingEnabled,
+			telemetryEnabled,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -47,25 +47,20 @@ func newUserStorage(
 
 func sqlDB(
 	conf *sqldriver.Config,
-	tracingEnabled bool,
+	telemetryEnabled bool,
 ) (*sql.DB, error) {
-	driverName := "mysql"
+	var db *sql.DB
+	var err error
 
-	if tracingEnabled {
-		driverName = "instrumented-mysql"
-		sql.Register(
-			driverName,
-			sqltracing.WrapDriver(
-				sqldriver.MySQLDriver{},
-				sqltracing.WithTracer(sqlopentracing.NewTracer(true)),
-			),
-		)
+	switch telemetryEnabled {
+	case true:
+		db, err = otelsql.Open("mysql", conf.FormatDSN(), otelsql.WithAttributes(
+			semconv.DBSystemMySQL,
+		))
+	default:
+		db, err = sql.Open("mysql", conf.FormatDSN())
 	}
 
-	db, err := sql.Open(
-		driverName,
-		conf.FormatDSN(),
-	)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to connect to db: %w",

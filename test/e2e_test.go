@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -14,24 +14,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastic/go-elasticsearch/v7"
-	"github.com/elastic/go-elasticsearch/v7/esapi"
+	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/joho/godotenv"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 
 	user "github.com/bendbennett/go-api-demo/generated"
 	"github.com/bendbennett/go-api-demo/internal/bootstrap"
 	"github.com/bendbennett/go-api-demo/internal/config"
 	"github.com/bendbennett/go-api-demo/internal/validate"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/golang-migrate/migrate"
-	migratemysql "github.com/golang-migrate/migrate/database/mysql"
-	_ "github.com/golang-migrate/migrate/source/file"
+	"github.com/golang-migrate/migrate/v4"
+	migratemysql "github.com/golang-migrate/migrate/v4/database/mysql"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func Test_E2E(t *testing.T) {
@@ -70,9 +71,8 @@ func env(t *testing.T) {
 	env := map[string]string{
 		"HTTP_PORT":          "3001",
 		"GRPC_PORT":          "1235",
-		"TRACING_ENABLED":    "false",
+		"TELEMETRY_ENABLED":  "false",
 		"LOGGING_PRODUCTION": "true",
-		"METRICS_ENABLED":    "false",
 	}
 
 	for k, v := range env {
@@ -95,7 +95,7 @@ func purge(t *testing.T) {
 		db, err := sql.Open(
 			"mysql",
 			fmt.Sprintf(
-				"%s:%s@tcp(%s:%s)/%s?parseTime=true",
+				"%s:%s@tcp(%s:%s)/%s?parseTime=true&multiStatements=true",
 				config.GetEnvAsString("MYSQL_USER", ""),
 				config.GetEnvAsString("MYSQL_PASSWORD", ""),
 				config.GetEnvAsString("MYSQL_HOST", ""),
@@ -122,6 +122,25 @@ func purge(t *testing.T) {
 		}
 
 		if err := m.Drop(); err != nil && err != migrate.ErrNoChange {
+			t.Error(err)
+		}
+
+		// WithInstance calls WithConnection which ensures that the schema migrations table
+		// is created if it does not exist. Hence WithInstance needs to be called
+		// again after calling Drop so that schema_migrations table is recreated after drop.
+		//
+		// https://github.com/golang-migrate/migrate/issues/226
+		dbInstance, err = migratemysql.WithInstance(db, &migratemysql.Config{})
+		if err != nil {
+			panic(err)
+		}
+
+		m, err = migrate.NewWithDatabaseInstance(
+			"file://../internal/storage/mysql/migrations",
+			"mysql",
+			dbInstance,
+		)
+		if err != nil {
 			t.Error(err)
 		}
 
@@ -271,7 +290,7 @@ func (a *httpClient) doRequest(payload httpRequest) (int, []byte, error) {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, nil, fmt.Errorf("body read err: %v", err)
 	}
@@ -457,8 +476,7 @@ type grpcClient struct {
 }
 
 func newGRPCClient() *grpcClient {
-	conn, err := grpc.DialContext(
-		context.Background(),
+	conn, err := grpc.NewClient(
 		fmt.Sprintf(
 			"%s:%d",
 			config.GetEnvAsString(
@@ -470,7 +488,9 @@ func newGRPCClient() *grpcClient {
 				1235,
 			),
 		),
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(
+			insecure.NewCredentials(),
+		),
 	)
 	if err != nil {
 		panic(err)

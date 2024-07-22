@@ -3,23 +3,20 @@ package consume
 import (
 	"context"
 	"errors"
-	"time"
 
+	"github.com/bendbennett/go-api-demo/internal/format"
 	"github.com/bendbennett/go-api-demo/internal/user"
+	"github.com/mitchellh/mapstructure"
 )
 
-type p struct {
+type processor struct {
 	creator user.Creator
-}
-
-type Processor interface {
-	Process(context.Context, inputData) error
 }
 
 func NewProcessor(
 	creator user.Creator,
-) *p {
-	return &p{
+) *processor {
+	return &processor{
 		creator,
 	}
 }
@@ -30,63 +27,68 @@ func NewProcessor(
 // filtered out in the consumer, but we are just being defensive.
 // The second case checks whether before is empty, in which case a user is being created.
 // TODO: Implement update and delete.
-func (p *p) Process(
+func (p *processor) Process(
 	ctx context.Context,
-	inputData inputData,
+	data any,
 ) error {
-	diff := p.userBeforeAfter(inputData)
+	beforeAfter := beforeAfter{}
+
+	err := mapstructure.Decode(data, &beforeAfter)
+	if err != nil {
+		return err
+	}
+
+	userBeforeAfter := beforeAfter.UserBeforeAfter()
 
 	switch {
-	case diff.before == diff.after:
+	case userBeforeAfter.before == userBeforeAfter.after:
 		return nil
-	case diff.before == (user.User{}):
-		return p.creator.Create(ctx, diff.after)
+	case userBeforeAfter.before == (user.User{}):
+		return p.creator.Create(ctx, userBeforeAfter.after)
 	default:
 		return errors.New("not implemented")
 	}
 }
 
-// userBeforeAfter converts the inputData to map[string]user.User.
-//
-// The CreatedAt timestamp (io.debezium.time.Timestamp) is an int64 that represents the unix
-// timestamp in msec. As the first arg to time.Unix is expected to be sec, the CreatedAt
-// value needs to be divided by 1000. The second arg to time.Unix is nsec, so the msec that
-// remain after the sec are subtracted are multiplied by 1000000.
-func (p *p) userBeforeAfter(inputData inputData) userChange {
-	msecToTime := func(msec int64) time.Time {
-		const (
-			divisor    = 1e3
-			multiplier = 1e6
-		)
-
-		t := time.Time{}
-
-		if msec > 0 {
-			sec := msec / divisor
-			nsec := (msec - (sec * divisor)) * multiplier
-			t = time.Unix(sec, nsec)
-		}
-
-		return t
-	}
-
-	return userChange{
-		before: user.User{
-			CreatedAt: msecToTime(inputData.Before.CreatedAt),
-			ID:        inputData.Before.ID,
-			FirstName: inputData.Before.FirstName,
-			LastName:  inputData.Before.LastName,
-		},
-		after: user.User{
-			CreatedAt: msecToTime(inputData.After.CreatedAt),
-			ID:        inputData.After.ID,
-			FirstName: inputData.After.FirstName,
-			LastName:  inputData.After.LastName,
-		},
-	}
+type beforeAfter struct {
+	Before value
+	After  value
 }
 
-type userChange struct {
+type value struct {
+	Value usr `mapstructure:"mysql.go_api_demo.users.Value"`
+}
+
+type usr struct {
+	ID        string `mapstructure:"id"`
+	FirstName string `mapstructure:"first_name"`
+	LastName  string `mapstructure:"last_name"`
+	CreatedAt int64  `mapstructure:"created_at"`
+}
+
+type userBeforeAfter struct {
 	before user.User
 	after  user.User
+}
+
+// UserBeforeAfter converts beforeAfter to struct
+// containing user.User for before and after.
+//
+// The CreatedAt timestamp (io.debezium.time.Timestamp) is an
+// int64 that represents the unix timestamp in msec.
+func (bf beforeAfter) UserBeforeAfter() userBeforeAfter {
+	return userBeforeAfter{
+		before: user.User{
+			CreatedAt: format.MsecToTime(bf.Before.Value.CreatedAt),
+			ID:        bf.Before.Value.ID,
+			FirstName: bf.Before.Value.FirstName,
+			LastName:  bf.Before.Value.LastName,
+		},
+		after: user.User{
+			CreatedAt: format.MsecToTime(bf.After.Value.CreatedAt),
+			ID:        bf.After.Value.ID,
+			FirstName: bf.After.Value.FirstName,
+			LastName:  bf.After.Value.LastName,
+		},
+	}
 }

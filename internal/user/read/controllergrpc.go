@@ -37,7 +37,7 @@ func (c *grpcController) Read(
 		ctx,
 	)
 	if err != nil {
-		c.logger.WithSpan(ctx).Error(err)
+		c.logger.ErrorContext(ctx, err)
 		return nil, err
 	}
 

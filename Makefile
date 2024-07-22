@@ -1,5 +1,5 @@
 SERVICE_NAME=go-api-demo
-MYSQL_DSN=mysql://user:password@tcp(127.0.0.1:3306)/go-api-demo
+MYSQL_DSN=mysql://user:password@tcp(127.0.0.1:3306)/go_api_demo
 MYSQL_MIGRATION_PATH=internal/storage/mysql/migrations
 export HOST_IP=${shell ipconfig getifaddr en0}
 
@@ -63,11 +63,15 @@ endif
 
 .PHONY: docker-up
 docker-up: .env
-	docker compose -f docker/dev/docker-compose.yml up -d
+	docker compose -f docker/dev/docker-compose.yml build --no-cache
+	docker image prune -f
+	docker compose -f docker/dev/docker-compose.yml up -d --force-recreate
 
 .PHONY: docker-down
 docker-down:
-	docker rm --force -v go-api-demo-connect go-api-demo-grafana go-api-demo-prometheus go-api-demo-jaeger go-api-demo-redis go-api-demo-elastic go-api-demo-zookeeper go-api-demo-kowl go-api-demo-db go-api-demo-kafka go-api-demo-schema-registry
+	docker rm --force -v go-api-demo-connect go-api-demo-grafana go-api-demo-prometheus \
+	go-api-demo-jaeger go-api-demo-redis go-api-demo-elastic go-api-demo-zookeeper \
+	go-api-demo-kowl go-api-demo-db go-api-demo-kafka go-api-demo-schema-registry
 	docker compose -f docker/dev/docker-compose.yml down
 
 ################################################################################
