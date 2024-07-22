@@ -30,6 +30,7 @@ is used as a basis for event-driven cache and search engine population whilst av
 | [v0.10.0](#v0.10.0) | <ul><li>Adds tracing for Redis, Elasticsearch and the Kafka consumers.</li><li>Switch to <a href="https://github.com/segmentio/kafka-go">kafka-go</a>.</li><li>Adds basic metrics and dashboard for the Kafka consumers.</li></ul>                                                   |
 | [v0.11.0](#v0.11.0) | <ul><li>Uses 2 Kafka partitions for CDC for MySQL _users_ table.</li><li>Uses 2 consumers for populating Elasticsearch.</li></ul>                                                                                                                                                    |
 | [v0.12.0](#v0.12.0) | Uses Avro Schema for serialization and deserialization.                                                                                                                                                                                                                              |
+| [v0.13.0](#v0.13.0) | Updating dependencies.                                                                                                                                                                                                                              |
 
 ### Set-up
 
@@ -57,9 +58,21 @@ The _Makefile_ contains commands for building, running and testing the API.
 * `make test` runs the linter then the tests (see [Tests](#tests)).
 * `make migrate-up` runs the database migrations for MySQL (see [v0.3.0](#v0.3.0)).
 
+### <a name="setup"></a>Setup
+
+There is a delay between running `make docker-up` and all necessary infrastructure being
+available to run the tests and the API. This delay can result in errors when running
+the integration tests. Execute `make run` once the tests run successfully.
+
+```
+make docker-up
+make test
+make run
+```
+
 ### <a name="tests"></a>Tests
 
-Install [testify](https://github.com/stretchr/testify#installation) then run 
+Install [testify](https://github.com/stretchr/testify#installation) then run: 
 
 ```
 make docker-up
@@ -76,6 +89,10 @@ Alternatively, requests can be issued using cURL and
 [gRPCurl](https://github.com/fullstorydev/grpcurl) (see [v0.2.0](#v0.2.0),
 [v0.3.0](#v0.3.0), [v0.4.0](#v0.4.0)).
 
+## <a name="v0.13.0"></a>v0.13.0
+
+Version `0.13.0` has been updated to use more recent versions of packages and docker images. A switch from open tracing to open telemetry has also been implemented.
+
 ## <a name="v0.12.0"></a>v0.12.0
 
 Uses Avro Schema for the serialization of users during CDC and deserialization when 
@@ -83,13 +100,13 @@ the Kafka consumers populate Redis and Elasticsearch.
 
 ### Set-up
 
-There is a delay between running docker-up and all necessary infrastructure being
-available to run the tests and the API. This delay can result in errors when running
-the integration tests. Execute `make run` once the tests run successfully.
+Review the notes for [setup](#setup).
 
-    make docker-up
-    make test
-    make run
+```
+make docker-up
+make test
+make run
+```
 
 The schema are visible through Kowl.
 
@@ -103,20 +120,20 @@ Adds 2 Kafka consumers for populating Elasticsearch.
 
 ### Set-up
 
-There is a delay between running docker-up and all necessary infrastructure being 
-available to run the tests and the API. This delay can result in errors when running
-the integration tests. Execute `make run` once the tests run successfully.  
+Review the notes for [setup](#setup).
 
-    make docker-up
-    make test
-    make run
+```
+make docker-up
+make test
+make run
+```
 
 Running (see [docker](#k6_docker_post) or [local](#k6_local_post)) the [k6](https://k6.io/) script will send 50
 requests per second (RPS) to the `POST /user` endpoint for 5 minutes.
 
 #### <a name="k6_docker_post"></a>Docker
 
-     docker run -e HOST=host.docker.internal -i loadimpact/k6 run - <k6/post.js
+     docker run -e HOST=host.docker.internal -i grafana/k6 run - <k6/post.js
 
 #### <a name="k6_local_post"></a>Local
 
@@ -185,7 +202,7 @@ requests per second (RPS) to the `POST /user` endpoint for 5 minutes.
 
 #### <a name="k6_docker_post"></a>Docker
 
-     docker run -e HOST=host.docker.internal -i loadimpact/k6 run - <k6/post.js
+     docker run -e HOST=host.docker.internal -i grafana/k6 run - <k6/post.js
 
 #### <a name="k6_local_post"></a>Local
 
@@ -545,7 +562,7 @@ for the [Grafana](http://localhost:3456) dashboard.
 
 #### <a name="k6_docker"></a>Docker
 
-     docker run -e HOST=host.docker.internal -i loadimpact/k6 run - <k6/get.js
+     docker run -e HOST=host.docker.internal -i grafana/k6 run - <k6/get.js
 
 #### <a name="k6_local"></a>Local
 

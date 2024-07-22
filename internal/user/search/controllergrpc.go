@@ -40,13 +40,13 @@ func (c *grpcController) Search(
 ) (*user.UsersResponse, error) {
 	searchTerm, err := c.sanitise(searchReq.SearchTerm)
 	if err != nil {
-		c.logger.WithSpan(ctx).Errorf("clean string failed: %v", err)
+		c.logger.ErrorfContext(ctx, "clean string failed: %v", err)
 		return nil, err
 	}
 
 	if len(searchTerm) < searchTermMinLen {
 		msg := fmt.Sprintf("search term must be >= %v chars", searchTermMinLen)
-		c.logger.WithSpan(ctx).Infof(msg)
+		c.logger.InfofContext(ctx, msg)
 		return nil, errors.New(msg)
 	}
 
@@ -55,7 +55,7 @@ func (c *grpcController) Search(
 		searchTerm,
 	)
 	if err != nil {
-		c.logger.WithSpan(ctx).Error(err)
+		c.logger.ErrorContext(ctx, err)
 		return nil, err
 	}
 

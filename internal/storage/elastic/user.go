@@ -10,13 +10,12 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/bendbennett/go-api-demo/internal/user"
-	"github.com/elastic/go-elasticsearch/v7"
-	"github.com/elastic/go-elasticsearch/v7/esapi"
+	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/elastic/go-elasticsearch/v8/esapi"
 )
 
 const usrs = "users"
@@ -37,7 +36,7 @@ type r struct {
 
 func NewUserSearch(
 	esConf elasticsearch.Config,
-	isTracingEnabled bool,
+	telemetryEnabled bool,
 ) (*userSearch, error) {
 	es, err := elasticsearch.NewClient(esConf)
 	if err != nil {
@@ -51,7 +50,7 @@ func NewUserSearch(
 
 	us := userSearch{es}
 
-	if isTracingEnabled {
+	if telemetryEnabled {
 		us = userSearch{&instrumentSearch{es}}
 	}
 
@@ -239,7 +238,7 @@ type instrumentSearch struct {
 }
 
 func (s *instrumentSearch) Perform(request *http.Request) (*http.Response, error) {
-	span, _ := opentracing.StartSpanFromContext(
+	ctx, oSpan := otel.GetTracerProvider().Tracer("").Start(
 		request.Context(),
 		fmt.Sprintf(
 			"HTTP %s: %s",
@@ -247,11 +246,15 @@ func (s *instrumentSearch) Perform(request *http.Request) (*http.Response, error
 			request.URL.Path,
 		),
 	)
-	defer span.Finish()
+	defer oSpan.End()
 
-	ext.Component.Set(span, "database/elasticsearch")
-	ext.HTTPMethod.Set(span, request.Method)
-	ext.HTTPUrl.Set(span, request.URL.Path)
+	oSpan.SetAttributes(
+		attribute.String("component", "database/elasticsearch"),
+		attribute.String("http.method", request.Method),
+		attribute.String("http.url", request.URL.Path),
+	)
+
+	request = request.Clone(ctx)
 
 	return s.search.Perform(request)
 }

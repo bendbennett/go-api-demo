@@ -6,19 +6,19 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/gorilla/mux"
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type HTTPRouter struct {
-	handler http.Handler
-	logger  log.Logger
-	port    int
+	handler           http.Handler
+	logger            log.Logger
+	port              int
+	readHeaderTimeout time.Duration
 }
 
 type HTTPControllers struct {
@@ -27,15 +27,10 @@ type HTTPControllers struct {
 	UserSearchController func(w http.ResponseWriter, r *http.Request)
 }
 
-type HTTPProm struct {
-	RequestDurationHistogram *prometheus.HistogramVec
-	RequestCounter           *prometheus.CounterVec
-}
-
 type route struct {
-	path    string
-	handler http.HandlerFunc
-	method  string
+	path        string
+	handlerFunc http.HandlerFunc
+	method      string
 }
 
 // NewHTTPRouter returns a pointer to an HTTPRouter struct populated
@@ -43,9 +38,9 @@ type route struct {
 func NewHTTPRouter(
 	controllers HTTPControllers,
 	logger log.Logger,
-	httpProm HTTPProm,
-	tracer opentracing.Tracer,
+	telemetryEnabled bool,
 	port int,
+	readHeaderTimeout time.Duration,
 ) *HTTPRouter {
 	router := mux.NewRouter()
 
@@ -57,90 +52,66 @@ func NewHTTPRouter(
 	)
 
 	router.HandleFunc(
-		"/metrics",
-		promhttp.Handler().ServeHTTP,
-	)
-
-	router.HandleFunc(
 		"/debug/pprof/profile",
 		pprof.Profile,
 	)
 
 	routes := []route{
 		{
-			path:    "/user",
-			handler: controllers.UserCreateController,
-			method:  http.MethodPost,
+			path:        "/user",
+			handlerFunc: controllers.UserCreateController,
+			method:      http.MethodPost,
 		},
 		{
-			path:    "/user",
-			handler: controllers.UserReadController,
-			method:  http.MethodGet,
+			path:        "/user",
+			handlerFunc: controllers.UserReadController,
+			method:      http.MethodGet,
 		},
 		{
-			path:    "/user/search/{searchTerm}",
-			handler: controllers.UserSearchController,
-			method:  http.MethodGet,
+			path:        "/user/search/{searchTerm}",
+			handlerFunc: controllers.UserSearchController,
+			method:      http.MethodGet,
 		},
+	}
+
+	telemetryHandlerFunc := func(f http.HandlerFunc, path string) http.HandlerFunc {
+		if !telemetryEnabled {
+			return f
+		}
+
+		return func(w http.ResponseWriter, r *http.Request) {
+			labeler, _ := otelhttp.LabelerFromContext(r.Context())
+			labeler.Add(attribute.String("http_route", path))
+
+			f(w, r)
+		}
 	}
 
 	for _, route := range routes {
 		router.HandleFunc(
 			route.path,
-			wrapMetrics(
-				httpProm,
-				route,
-			),
+			telemetryHandlerFunc(route.handlerFunc, route.path),
 		).Methods(route.method)
 	}
 
-	handler := nethttp.Middleware(
-		tracer,
-		router,
-		nethttp.OperationNameFunc(func(r *http.Request) string {
-			return "HTTP " + r.Method + ": " + r.URL.Path
-		}),
-		nethttp.MWSpanFilter(func(r *http.Request) bool {
-			return r.URL.Path != "/metrics"
-		}),
-	)
+	var handler http.Handler = router
+
+	if telemetryEnabled {
+		handler = otelhttp.NewHandler(
+			router,
+			"http",
+			otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
+				return operation + ": " + r.Method + ": " + r.URL.Path
+			}),
+		)
+	}
 
 	return &HTTPRouter{
 		handler,
 		logger,
 		port,
+		readHeaderTimeout,
 	}
-}
-
-func wrapMetrics(
-	httpProm HTTPProm,
-	route route,
-) http.HandlerFunc {
-	if httpProm.RequestCounter != nil {
-		route.handler = promhttp.InstrumentHandlerCounter(
-			httpProm.RequestCounter.MustCurryWith(
-				prometheus.Labels{
-					"route":  route.path,
-					"method": route.method,
-				},
-			),
-			route.handler,
-		)
-	}
-
-	if httpProm.RequestDurationHistogram != nil {
-		route.handler = promhttp.InstrumentHandlerDuration(
-			httpProm.RequestDurationHistogram.MustCurryWith(
-				prometheus.Labels{
-					"route":  route.path,
-					"method": route.method,
-				},
-			),
-			route.handler,
-		)
-	}
-
-	return route.handler
 }
 
 // Run configures and starts an HTTP server. A go routine is
@@ -159,7 +130,8 @@ func (r *HTTPRouter) Run(ctx context.Context) error {
 	}
 
 	s := http.Server{
-		Handler: r.handler,
+		Handler:           r.handler,
+		ReadHeaderTimeout: r.readHeaderTimeout,
 	}
 
 	go func() {
@@ -181,46 +153,4 @@ func (r *HTTPRouter) Run(ctx context.Context) error {
 	}
 
 	return err
-}
-
-func NewHTTPProm(metricsEnabled bool) (HTTPProm, error) {
-	if !metricsEnabled {
-		return HTTPProm{}, nil
-	}
-
-	requestDurationHistogram := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "A histogram of latencies for HTTP requests.",
-			Buckets: []float64{.001, .002, .005, .01, .02, .05, .1, .2, .5, 1, 2, 5},
-		},
-		[]string{"route", "method", "code"},
-	)
-
-	err := prometheus.Register(requestDurationHistogram)
-	if err != nil {
-		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
-			return HTTPProm{}, err
-		}
-	}
-
-	requestCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_server_handled_total",
-			Help: "Total number of HTTP requests completed on the server, regardless of success or failure",
-		},
-		[]string{"route", "method", "code"},
-	)
-
-	err = prometheus.Register(requestCounter)
-	if err != nil {
-		if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
-			return HTTPProm{}, err
-		}
-	}
-
-	return HTTPProm{
-		RequestDurationHistogram: requestDurationHistogram,
-		RequestCounter:           requestCounter,
-	}, nil
 }

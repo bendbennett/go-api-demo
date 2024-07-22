@@ -43,7 +43,7 @@ func (c *httpController) Create(
 
 	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
-		c.logger.WithSpan(ctx).Errorf("json body invalid: %v", err)
+		c.logger.ErrorfContext(ctx, "json body invalid: %v", err)
 		response.WriteErrorResponse(
 			w,
 			http.StatusBadRequest,
@@ -55,7 +55,7 @@ func (c *httpController) Create(
 
 	errs := c.validator.ValidateStruct(input)
 	if errs != nil {
-		c.logger.WithSpan(ctx).Infof("input invalid: %v", errs)
+		c.logger.InfofContext(ctx, "input invalid: %v", errs)
 		response.WriteErrorResponse(
 			w,
 			http.StatusBadRequest,
@@ -70,7 +70,7 @@ func (c *httpController) Create(
 		input,
 	)
 	if err != nil {
-		c.logger.WithSpan(ctx).Error(err)
+		c.logger.ErrorContext(ctx, err)
 		response.Write500Response(w)
 		return
 	}

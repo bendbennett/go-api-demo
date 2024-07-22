@@ -7,20 +7,16 @@ import (
 
 	user "github.com/bendbennett/go-api-demo/generated"
 	"github.com/bendbennett/go-api-demo/internal/log"
-	middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
-	promgrpc "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
 type GRPCRouter struct {
-	userServer     *userServer
-	logger         log.Logger
-	metricsEnabled bool
-	tracingEnabled bool
-	port           int
+	userServer       *userServer
+	logger           log.Logger
+	telemetryEnabled bool
+	port             int
 }
 
 type GRPCControllers struct {
@@ -34,8 +30,7 @@ type GRPCControllers struct {
 func NewGRPCRouter(
 	controllers GRPCControllers,
 	logger log.Logger,
-	metricEnabled bool,
-	tracingEnabled bool,
+	telemetryEnabled bool,
 	port int,
 ) *GRPCRouter {
 	return &GRPCRouter{
@@ -46,8 +41,7 @@ func NewGRPCRouter(
 			UserSearch:              controllers.UserSearch,
 		},
 		logger,
-		metricEnabled,
-		tracingEnabled,
+		telemetryEnabled,
 		port,
 	}
 }
@@ -101,38 +95,10 @@ func (r *GRPCRouter) Run(ctx context.Context) error {
 		r.logger.Panicf("failed to listen: %v", err)
 	}
 
-	var (
-		streamServerInterceptors []grpc.StreamServerInterceptor
-		unaryServerInterceptors  []grpc.UnaryServerInterceptor
-	)
+	serverOptions := []grpc.ServerOption{}
 
-	if r.metricsEnabled {
-		streamServerInterceptors = append(
-			streamServerInterceptors,
-			promgrpc.StreamServerInterceptor,
-		)
-
-		unaryServerInterceptors = append(
-			unaryServerInterceptors,
-			promgrpc.UnaryServerInterceptor,
-		)
-	}
-
-	if r.tracingEnabled {
-		streamServerInterceptors = append(
-			streamServerInterceptors,
-			opentracing.StreamServerInterceptor(),
-		)
-
-		unaryServerInterceptors = append(
-			unaryServerInterceptors,
-			opentracing.UnaryServerInterceptor(),
-		)
-	}
-
-	serverOptions := []grpc.ServerOption{
-		grpc.StreamInterceptor(middleware.ChainStreamServer(streamServerInterceptors...)),
-		grpc.UnaryInterceptor(middleware.ChainUnaryServer(unaryServerInterceptors...)),
+	if r.telemetryEnabled {
+		serverOptions = append(serverOptions, grpc.StatsHandler(otelgrpc.NewServerHandler()))
 	}
 
 	s := grpc.NewServer(serverOptions...)
@@ -141,17 +107,7 @@ func (r *GRPCRouter) Run(ctx context.Context) error {
 		r.userServer,
 	)
 
-	if r.metricsEnabled {
-		promgrpc.EnableHandlingTimeHistogram(
-			func(opts *prometheus.HistogramOpts) {
-				opts.Name = "grpc_request_duration_seconds"
-				opts.Help = "A histogram of latencies for gRPC requests."
-				opts.Buckets = []float64{.001, .002, .005, .01, .02, .05, .1, .2, .5, 1, 2, 5}
-			},
-		)
-		promgrpc.Register(s)
-	}
-
+	// TODO: This should be configurable as it publicly exposes the gRPC endpoints.
 	reflection.Register(s)
 
 	go func() {

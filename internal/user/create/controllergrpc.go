@@ -45,7 +45,7 @@ func (c *grpcController) Create(
 
 	errs := c.validator.ValidateStruct(input)
 	if errs != nil {
-		c.logger.WithSpan(ctx).Infof("input invalid: %v", errs)
+		c.logger.InfofContext(ctx, "input invalid: %v", errs)
 		return nil, fmt.Errorf("%v", errs)
 	}
 
@@ -54,7 +54,7 @@ func (c *grpcController) Create(
 		input,
 	)
 	if err != nil {
-		c.logger.WithSpan(ctx).Error(err)
+		c.logger.ErrorContext(ctx, err)
 		return nil, err
 	}
 

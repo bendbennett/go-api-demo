@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/validate"
 	"github.com/stretchr/testify/assert"
 )
@@ -59,12 +58,14 @@ func (pm *presenterMock) viewModel(outputData) viewModel {
 type loggerMock struct {
 }
 
-func (lm loggerMock) Panic(error)                         {}
-func (lm loggerMock) Panicf(string, ...interface{})       {}
-func (lm loggerMock) Error(error)                         {}
-func (lm loggerMock) Errorf(string, ...interface{})       {}
-func (lm loggerMock) Infof(string, ...interface{})        {}
-func (lm loggerMock) WithSpan(context.Context) log.Logger { return lm }
+func (lm loggerMock) Panic(error)                                           {}
+func (lm loggerMock) Panicf(string, ...interface{})                         {}
+func (lm loggerMock) Error(error)                                           {}
+func (lm loggerMock) ErrorContext(context.Context, error)                   {}
+func (lm loggerMock) Errorf(string, ...interface{})                         {}
+func (lm loggerMock) ErrorfContext(context.Context, string, ...interface{}) {}
+func (lm loggerMock) Infof(string, ...interface{})                          {}
+func (lm loggerMock) InfofContext(context.Context, string, ...interface{})  {}
 
 func TestRest_Create(t *testing.T) {
 	cases := []struct {

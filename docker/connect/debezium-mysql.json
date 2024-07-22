@@ -11,27 +11,24 @@
     "database.password": "root",
     "database.server.id": "100000",
     "database.server.name": "go_api_demo_db",
-    "database.include.list": "go-api-demo",
+    "database.include.list": "go_api_demo",
     "database.history.kafka.bootstrap.servers": "go-api-demo-kafka:9092",
-    "database.history.kafka.topic": "schema-changes.go-api-demo",
+    "database.history.kafka.topic": "mysql.database_history.go_api_demo",
     "database.allowPublicKeyRetrieval":"true",
+
+    "topic.prefix": "mysql",
 
     "topic.creation.default.replication.factor": 1,
     "topic.creation.default.partitions": 1,
     "topic.creation.default.cleanup.policy": "compact",
     "topic.creation.default.compression.type": "lz4",
 
-    "topic.creation.groups": "users",
-
-    "topic.creation.users.include": "go_api_demo_db\\.go-api-demo\\.users",
-    "topic.creation.users.replication.factor": 1,
-    "topic.creation.users.partitions": 2,
-    "topic.creation.users.cleanup.policy": "compact",
-    "topic.creation.users.compression.type": "producer",
-
     "key.converter": "io.confluent.connect.avro.AvroConverter",
     "value.converter": "io.confluent.connect.avro.AvroConverter",
     "key.converter.schema.registry.url": "http://go-api-demo-schema-registry:8081",
-    "value.converter.schema.registry.url": "http://go-api-demo-schema-registry:8081"
+    "value.converter.schema.registry.url": "http://go-api-demo-schema-registry:8081",
+
+    "schema.history.internal.kafka.bootstrap.servers":"go-api-demo-kafka:9092",
+    "schema.history.internal.kafka.topic":"mysql.schema_history.go_api_demo"
   }
 }
