@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
-	"go.uber.org/zap/zapcore"
-
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type spanLogger struct {
 	logger     *zap.Logger
-	span       opentracing.Span
+	span       trace.Span
 	spanFields []zapcore.Field
 }
 
@@ -56,9 +55,6 @@ func (sl spanLogger) logToSpan(level string, msg string) {
 		return
 	}
 
-	fields := make([]log.Field, 0, 2)
-	fields = append(fields, log.String("event", msg))
-	fields = append(fields, log.String("level", level))
-
-	sl.span.LogFields(fields...)
+	sl.span.SetAttributes(attribute.String("event", msg))
+	sl.span.SetAttributes(attribute.String("level", level))
 }

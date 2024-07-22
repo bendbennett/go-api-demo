@@ -2,3 +2,4 @@
 bin/go-api-demo
 generated/*.protoset
 test/coverage.txt
+.vscode

@@ -7,13 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/segmentio/kafka-go"
-
-	"github.com/elastic/go-elasticsearch/v7"
-
-	"github.com/go-redis/redis/v8"
+	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
 )
 
 const StorageTypeMemory = "memory"
@@ -26,13 +24,17 @@ type Config struct {
 	Elasticsearch      elasticsearch.Config
 	TopicConfigs       TopicConfigs
 	SchemaRegistry     SchemaRegistry
+	Telemetry          Telemetry
 	UserConsumerCache  KafkaConsumer
 	UserConsumerSearch KafkaConsumer
-	Metrics            Metrics
-	Tracing            Tracing
 	Logging            Logging
-	HTTPPort           int
+	HTTP               HTTP
 	GRPCPort           int
+}
+
+type HTTP struct {
+	Port              int
+	ReadHeaderTimeout time.Duration
 }
 
 type Storage struct {
@@ -40,13 +42,11 @@ type Storage struct {
 	QueryTimeout time.Duration
 }
 
-type Metrics struct {
-	Enabled            bool
-	CollectionInterval time.Duration
-}
-
-type Tracing struct {
-	Enabled bool
+type Telemetry struct {
+	ServiceName               string
+	ExporterTargetEndPoint    string
+	MetricsCollectionInterval time.Duration
+	Enabled                   bool
 }
 
 type Logging struct {
@@ -95,7 +95,7 @@ func New() Config {
 				GetEnvAsString(
 					"MYSQL_HOST",
 					"localhost"),
-				GetEnvAsInt(""+
+				GetEnvAsInt(
 					"MYSQL_PORT",
 					3306),
 			),
@@ -105,6 +105,7 @@ func New() Config {
 			),
 			ParseTime:            true,
 			AllowNativePasswords: true,
+			InterpolateParams:    true,
 		},
 		Storage: Storage{
 			Type: GetEnvAsString(
@@ -116,18 +117,23 @@ func New() Config {
 				3*time.Second,
 			),
 		},
-		Metrics: Metrics{
-			Enabled: GetEnvAsBool(
-				"METRICS_ENABLED",
-				true,
+		Telemetry: Telemetry{
+			ServiceName: GetEnvAsString(
+				"TELEMETRY_SERVICE_NAME",
+				"go-api-demo",
 			),
-			CollectionInterval: GetEnvAsDuration(
-				"METRICS_COLLECTION_INTERVAL",
-				5*time.Second),
-		},
-		Tracing: Tracing{
+			// OTEL_EXPORTER_OTLP_ENDPOINT is env var for base endpoint URL for any signal type.
+			// https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/
+			ExporterTargetEndPoint: GetEnvAsString(
+				"TELEMETRY_EXPORTER_TARGET_ENDPOINT",
+				"0.0.0.0:4317",
+			),
+			MetricsCollectionInterval: GetEnvAsDuration(
+				"TELEMETRY_METRICS_COLLECTION_INTERVAL",
+				5*time.Second,
+			),
 			Enabled: GetEnvAsBool(
-				"TRACING_ENABLED",
+				"TELEMETRY_ENABLED",
 				true,
 			),
 		},
@@ -219,7 +225,7 @@ func New() Config {
 			),
 			Conf: []kafka.TopicConfig{
 				{
-					Topic:             "go_api_demo_db.go-api-demo.users",
+					Topic:             "mysql.go_api_demo.users",
 					NumPartitions:     2,
 					ReplicationFactor: 1,
 					ConfigEntries: []kafka.ConfigEntry{
@@ -259,7 +265,7 @@ func New() Config {
 					"/subjects/%v/versions/%v",
 					GetEnvAsString(
 						"KAFKA_SCHEMA_REGISTRY_USERS_VALUE",
-						"go_api_demo_db.go-api-demo.users-value",
+						"mysql.go_api_demo.users-value",
 					),
 					GetEnvAsString(
 						"KAFKA_SCHEMA_REGISTRY_USERS_VALUE_VERSION",
@@ -268,10 +274,16 @@ func New() Config {
 				),
 			},
 		},
-		HTTPPort: GetEnvAsInt(
-			"HTTP_PORT",
-			3000,
-		),
+		HTTP: HTTP{
+			Port: GetEnvAsInt(
+				"HTTP_PORT",
+				3000,
+			),
+			ReadHeaderTimeout: GetEnvAsDuration(
+				"HTTP_READ_HEADER_TIMEOUT",
+				10*time.Second,
+			),
+		},
 		GRPCPort: GetEnvAsInt(
 			"GRPC_PORT",
 			1234,

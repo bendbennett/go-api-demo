@@ -1,38 +1,28 @@
-version: '3'
-
 services:
   go-api-demo-db:
     container_name: go-api-demo-db
-    image: mysql:8
+    image: mysql:9.1
     ports:
       - "3306:3306"
     environment:
       PS1: "\\u@\\h:\\w\\$$ "
       MYSQL_ROOT_PASSWORD: "root"
-      MYSQL_DATABASE: "go-api-demo"
+      MYSQL_DATABASE: "go_api_demo"
       MYSQL_USER: "user"
       MYSQL_PASSWORD: "password"
 
   go-api-demo-prometheus:
     container_name: go-api-demo-prometheus
-    image: prom/prometheus:v2.31.1
+    image: prom/prometheus:v3.0.1
+    restart: always
     volumes:
-      - ../prometheus:/etc/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
+      - ../prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
-    labels:
-      org.label-schema.group: "monitoring"
 
   go-api-demo-grafana:
     container_name: go-api-demo-grafana
-    image: grafana/grafana:8.3.2
+    image: grafana/grafana:11.3.1
     volumes:
       - ../grafana/config/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
       - ../grafana/config/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml
@@ -41,16 +31,35 @@ services:
     ports:
       - "3456:3000"
 
+  go-api-demo-otel-collector:
+    container_name: go-api-demo-otel-collector
+    image: otel/opentelemetry-collector:0.114.0
+    restart: always
+    command: ["--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}"]
+    volumes:
+      - ../otel/otel-collector-config.yml:/etc/otel-collector-config.yaml
+    ports:
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "4317:4317"   # OTLP gRPC receiver
+      - "55679:55679" # zpages extension
+    depends_on:
+      - go-api-demo-jaeger
+
   go-api-demo-jaeger:
     container_name: go-api-demo-jaeger
-    image: jaegertracing/all-in-one:1.29
+    image: jaegertracing/all-in-one:1.63.0
+    restart: always
     ports:
-      - "6831:6831/udp"
       - "16686:16686"
+      - "14268"
+      - "14250"
 
   go-api-demo-zookeeper:
     container_name: go-api-demo-zookeeper
-    image: debezium/zookeeper:1.7
+    image: debezium/zookeeper:3.0.0.Final
     ports:
       - "2181:2181"
       - "2888:2888"
@@ -58,7 +67,7 @@ services:
 
   go-api-demo-kafka:
     container_name: go-api-demo-kafka
-    image: debezium/kafka:1.7
+    image: debezium/kafka:3.0.0.Final
     ports:
       - "9092:9092"
     environment:
@@ -68,6 +77,7 @@ services:
 
   go-api-demo-connect:
     container_name: go-api-demo-connect
+    image: debezium/connect:3.0.0.Final
     build:
       context: ../../
       dockerfile: docker/connect/Dockerfile
@@ -76,9 +86,9 @@ services:
     environment:
       - BOOTSTRAP_SERVERS=go-api-demo-kafka:9092
       - GROUP_ID=1
-      - CONFIG_STORAGE_TOPIC=go_api_demo_configs
-      - OFFSET_STORAGE_TOPIC=go_api_demo_offsets
-      - STATUS_STORAGE_TOPIC=go_api_demo_statuses
+      - CONFIG_STORAGE_TOPIC=mysql.go_api_demo.configs
+      - OFFSET_STORAGE_TOPIC=mysql.go_api_demo.offsets
+      - STATUS_STORAGE_TOPIC=mysql.go_api_demo.statuses
       - INTERNAL_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
       - INTERNAL_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
     depends_on:
@@ -88,6 +98,7 @@ services:
   go-api-demo-kowl:
     container_name: go-api-demo-kowl
     image: quay.io/cloudhut/kowl:master
+    restart: always
     ports:
       - "8080:8080"
     environment:
@@ -101,17 +112,18 @@ services:
   go-api-demo-redis:
     container_name: go-api-demo-redis
     command: redis-server --requirepass pass
-    image: redis:6.2
+    image: redis:7.4
     ports:
       - "6379:6379"
 
   go-api-demo-elasticsearch:
     container_name: go-api-demo-elastic
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.16.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.1
     environment:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false      
     ulimits:
       memlock:
         soft: -1
@@ -122,6 +134,7 @@ services:
 
   go-api-demo-schema-registry:
     container_name: go-api-demo-schema-registry
+    image: confluentinc/cp-schema-registry:7.7.1
     build:
       context: ../../
       dockerfile: docker/schema/Dockerfile

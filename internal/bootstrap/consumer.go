@@ -10,6 +10,7 @@ import (
 	"github.com/bendbennett/go-api-demo/internal/config"
 	"github.com/bendbennett/go-api-demo/internal/consume"
 	"github.com/bendbennett/go-api-demo/internal/log"
+	"github.com/bendbennett/go-api-demo/internal/metrics"
 	"github.com/bendbennett/go-api-demo/internal/user"
 	userconsume "github.com/bendbennett/go-api-demo/internal/user/consume"
 )
@@ -27,7 +28,7 @@ func newConsumers(
 
 	err := consume.CreateTopics(conf.TopicConfigs)
 	if err != nil {
-		panic(err)
+		return nil, nil, err
 	}
 
 	schemaClient := schema.NewClient(conf.SchemaRegistry.ClientTimeout)
@@ -42,28 +43,36 @@ func newConsumers(
 		return nil, nil, err
 	}
 
-	userConsumerProm, err := consume.NewConsumerProm(conf.Metrics.Enabled)
+	userConsumerMetrics, err := metrics.NewConsumerMetrics(conf.Telemetry.Enabled)
 	if err != nil {
 		panic(err)
 	}
 
-	userConsumerPromUserCache := consume.NewConsumerPromCollector(
+	userConsumerMetricsLabelsCache := metrics.NewConsumerMetricsLabels(
 		"user",
 		"cache",
-		conf.Metrics.CollectionInterval,
-		userConsumerProm,
+	)
+
+	userConsumerMetricsCollectorCache := metrics.NewConsumerMetricsCollector(
+		userConsumerMetrics,
+		userConsumerMetricsLabelsCache,
 	)
 
 	userProcessorCache := userconsume.NewProcessor(userCache)
 
-	consumers, closrs := userconsume.NewConsumers(
+	consumers, closrs, err := consume.NewConsumers(
 		conf.UserConsumerCache,
-		conf.Tracing.Enabled,
-		userConsumerPromUserCache,
+		conf.Telemetry.Enabled,
+		userConsumerMetricsLabelsCache,
+		userConsumerMetricsCollectorCache,
 		userProcessorCache,
 		userDecoder,
 		logger,
 	)
+
+	if err != nil {
+		return nil, nil, err
+	}
 
 	for _, consumer := range consumers {
 		components = append(components, consumer)
@@ -71,23 +80,31 @@ func newConsumers(
 
 	closers = addCloser(closers, closrs...)
 
-	userConsumerPromUserSearch := consume.NewConsumerPromCollector(
+	userConsumerMetricsLabelsSearch := metrics.NewConsumerMetricsLabels(
 		"user",
 		"search",
-		conf.Metrics.CollectionInterval,
-		userConsumerProm,
+	)
+
+	userConsumerMetricsCollectorSearch := metrics.NewConsumerMetricsCollector(
+		userConsumerMetrics,
+		userConsumerMetricsLabelsSearch,
 	)
 
 	userProcessorSearch := userconsume.NewProcessor(userSearch)
 
-	consumers, closrs = userconsume.NewConsumers(
+	consumers, closrs, err = consume.NewConsumers(
 		conf.UserConsumerSearch,
-		conf.Tracing.Enabled,
-		userConsumerPromUserSearch,
+		conf.Telemetry.Enabled,
+		userConsumerMetricsLabelsSearch,
+		userConsumerMetricsCollectorSearch,
 		userProcessorSearch,
 		userDecoder,
 		logger,
 	)
+
+	if err != nil {
+		return nil, nil, err
+	}
 
 	for _, consumer := range consumers {
 		components = append(components, consumer)

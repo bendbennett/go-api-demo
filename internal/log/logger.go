@@ -5,13 +5,12 @@ import (
 	"fmt"
 
 	"github.com/bendbennett/go-api-demo/internal/app"
-
-	"github.com/opentracing/opentracing-go"
-	"github.com/uber/jaeger-client-go"
-	"go.uber.org/zap/zapcore"
-
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+const callerSkip = 1
 
 type Logger interface {
 	Panic(err error)
@@ -30,9 +29,17 @@ func NewLogger(prod bool) (logger, error) {
 
 	switch prod {
 	case true:
-		zapLogger, err = zap.NewProduction()
+		zapLogger, err = zap.NewProduction(
+			zap.AddCallerSkip(
+				callerSkip,
+			),
+		)
 	default:
-		zapLogger, err = zap.NewDevelopment()
+		zapLogger, err = zap.NewDevelopment(
+			zap.AddCallerSkip(
+				callerSkip,
+			),
+		)
 	}
 	if err != nil {
 		return logger{}, err
@@ -69,17 +76,17 @@ func (l logger) Infof(msg string, args ...interface{}) {
 }
 
 func (l logger) WithSpan(ctx context.Context) Logger {
-	if span := opentracing.SpanFromContext(ctx); span != nil {
+	// span.IsRecording() determines whether span is noopSpan,
+	// which is generated when tracing has not been configured.
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
 		spanLogger := spanLogger{
 			logger: l.logger,
 			span:   span,
 		}
 
-		if jaegerCtx, ok := span.Context().(jaeger.SpanContext); ok {
-			spanLogger.spanFields = []zapcore.Field{
-				zap.String("trace_id", jaegerCtx.TraceID().String()),
-				zap.String("span_id", jaegerCtx.SpanID().String()),
-			}
+		spanLogger.spanFields = []zapcore.Field{
+			zap.String("trace_id", span.SpanContext().TraceID().String()),
+			zap.String("span_id", span.SpanContext().SpanID().String()),
 		}
 
 		return spanLogger

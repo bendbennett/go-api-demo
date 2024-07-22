@@ -8,6 +8,7 @@ import (
 	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/storage/elastic"
 	"github.com/bendbennett/go-api-demo/internal/storage/redis"
+	"github.com/bendbennett/go-api-demo/internal/telemetry"
 )
 
 // New configures a logger for use throughout the application,
@@ -28,9 +29,18 @@ func New() *app.App {
 		panic(err)
 	}
 
+	telemetry, err := telemetry.NewTelemetry(
+		logger,
+		conf.Telemetry,
+	)
+	if err != nil {
+		logger.Panic(err)
+	}
+	components = append(components, telemetry)
+
 	userCache, closer, err := redis.NewUserCache(
 		conf.Redis,
-		conf.Tracing.Enabled,
+		conf.Telemetry.Enabled,
 	)
 	if err != nil {
 		logger.Panic(err)
@@ -39,7 +49,7 @@ func New() *app.App {
 
 	userSearch, err := elastic.NewUserSearch(
 		conf.Elasticsearch,
-		conf.Tracing.Enabled,
+		conf.Telemetry.Enabled,
 	)
 	if err != nil {
 		logger.Panic(err)

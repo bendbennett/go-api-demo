@@ -5,15 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 
 	"github.com/pkg/errors"
-
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
+	"go.opentelemetry.io/otel"
 
 	"github.com/bendbennett/go-api-demo/internal/user"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 const usr = "user"
@@ -30,7 +29,7 @@ type userCache struct {
 
 func NewUserCache(
 	redisConf redis.Options,
-	isTracingEnabled bool,
+	telemetryEnabled bool,
 ) (*userCache, io.Closer, error) {
 	rdb := redis.NewClient(
 		&redis.Options{
@@ -44,7 +43,7 @@ func NewUserCache(
 		return nil, nil, err
 	}
 
-	if isTracingEnabled {
+	if telemetryEnabled {
 		rdb.AddHook(instrumentCache{})
 	}
 
@@ -125,40 +124,38 @@ func (c *userCache) Read(ctx context.Context) ([]user.User, error) {
 
 type instrumentCache struct{}
 
-func (ic instrumentCache) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
-	span, sCtx := opentracing.StartSpanFromContext(ctx, "redis:cmd")
-	ext.DBType.Set(span, "redis")
-	ext.DBStatement.Set(span, strings.ToUpper(cmd.Name()))
+func (ic instrumentCache) DialHook(next redis.DialHook) redis.DialHook {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := next(ctx, network, addr)
 
-	return sCtx, nil
+		return conn, err
+	}
 }
 
-func (ic instrumentCache) AfterProcess(ctx context.Context, cmd redis.Cmder) error {
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		span.Finish()
-	}
+func (ic instrumentCache) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		ctx, span := otel.GetTracerProvider().Tracer("").Start(ctx, "redis: "+strings.ToUpper(cmd.Name()))
+		defer span.End()
 
-	return nil
+		err := next(ctx, cmd)
+
+		return err
+	}
 }
 
-func (ic instrumentCache) BeforeProcessPipeline(ctx context.Context, cmds []redis.Cmder) (context.Context, error) {
-	span, sCtx := opentracing.StartSpanFromContext(ctx, "redis:pipeline-cmd")
-	ext.DBType.Set(span, "redis")
-	cmdNames := make([]string, len(cmds))
-	for i, cmd := range cmds {
-		cmdNames[i] = strings.ToUpper(cmd.Name())
+func (ic instrumentCache) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return func(ctx context.Context, cmds []redis.Cmder) error {
+		cmdNames := make([]string, len(cmds))
+
+		for i, cmd := range cmds {
+			cmdNames[i] = strings.ToUpper(cmd.Name())
+		}
+
+		ctx, span := otel.GetTracerProvider().Tracer("").Start(ctx, "redis-pipeline: "+strings.Join(cmdNames, " --> "))
+		defer span.End()
+
+		err := next(ctx, cmds)
+
+		return err
 	}
-	ext.DBStatement.Set(span, strings.Join(cmdNames, " --> "))
-
-	return sCtx, nil
-}
-
-func (ic instrumentCache) AfterProcessPipeline(ctx context.Context, cmds []redis.Cmder) error {
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		span.Finish()
-	}
-
-	return nil
 }

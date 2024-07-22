@@ -2,7 +2,7 @@
 
 bash -c '
 domain=http://go-api-demo-schema-registry:8081
-endpoint=/subjects/go_api_demo_db.go-api-demo.users-value/versions
+endpoint=/subjects/mysql.go_api_demo.users-value/versions
 
 text_break="\n=============\n"
 

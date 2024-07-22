@@ -8,7 +8,6 @@ import (
 	"github.com/bendbennett/go-api-demo/internal/log"
 	"github.com/bendbennett/go-api-demo/internal/routing"
 	"github.com/bendbennett/go-api-demo/internal/sanitise"
-	"github.com/bendbennett/go-api-demo/internal/trace"
 	"github.com/bendbennett/go-api-demo/internal/user"
 	usercreate "github.com/bendbennett/go-api-demo/internal/user/create"
 	userread "github.com/bendbennett/go-api-demo/internal/user/read"
@@ -35,7 +34,7 @@ func newRouters(
 	userStorage, closer, err := newUserStorage(
 		conf.MySQL,
 		conf.Storage,
-		conf.Tracing.Enabled,
+		conf.Telemetry.Enabled,
 	)
 	if err != nil {
 		logger.Panic(err)
@@ -77,23 +76,12 @@ func newRouters(
 		UserSearchController: userSearchControllerHTTP.Search,
 	}
 
-	httpProm, err := routing.NewHTTPProm(conf.Metrics.Enabled)
-	if err != nil {
-		logger.Panic(err)
-	}
-
-	tracer, closer, err := trace.NewTracer(logger, conf.Tracing.Enabled)
-	if err != nil {
-		logger.Panic(err)
-	}
-	closers = addCloser(closers, closer)
-
 	httpRouter := routing.NewHTTPRouter(
 		httpControllers,
 		logger,
-		httpProm,
-		tracer,
-		conf.HTTPPort,
+		conf.Telemetry.Enabled,
+		conf.HTTP.Port,
+		conf.HTTP.ReadHeaderTimeout,
 	)
 
 	components = append(components, httpRouter)
@@ -127,8 +115,7 @@ func newRouters(
 	grpcRouter := routing.NewGRPCRouter(
 		grpcControllers,
 		logger,
-		conf.Metrics.Enabled,
-		conf.Tracing.Enabled,
+		conf.Telemetry.Enabled,
 		conf.GRPCPort,
 	)
 
