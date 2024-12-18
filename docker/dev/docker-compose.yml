@@ -1,7 +1,7 @@
 services:
   go-api-demo-db:
     container_name: go-api-demo-db
-    image: mysql:9
+    image: mysql:9.1
     build:
       context: ../../
       dockerfile: docker/mysql/Dockerfile
@@ -42,7 +42,7 @@ services:
 
   go-api-demo-otel-collector:
     container_name: go-api-demo-otel-collector
-    image: otel/opentelemetry-collector:0.115.1
+    image: otel/opentelemetry-collector:0.116.1
     build:
       context: ../../
       dockerfile: docker/otel/Dockerfile       
@@ -62,7 +62,7 @@ services:
 
   go-api-demo-jaeger:
     container_name: go-api-demo-jaeger
-    image: jaegertracing/all-in-one:1
+    image: jaegertracing/all-in-one:1.64.0
     build:
       context: ../../
       dockerfile: docker/jaeger/Dockerfile     
@@ -74,7 +74,7 @@ services:
 
   go-api-demo-zookeeper:
     container_name: go-api-demo-zookeeper
-    image: quay.io/debezium/zookeeper:3.0
+    image: quay.io/debezium/zookeeper:3.0.4.Final
     build:
       context: ../../
       dockerfile: docker/zookeeper/Dockerfile     
@@ -85,7 +85,7 @@ services:
 
   go-api-demo-kafka:
     container_name: go-api-demo-kafka
-    image: quay.io/debezium/kafka:3.0
+    image: quay.io/debezium/kafka:3.0.4.Final
     build:
       context: ../../
       dockerfile: docker/kafka/Dockerfile     
@@ -98,7 +98,7 @@ services:
 
   go-api-demo-connect:
     container_name: go-api-demo-connect
-    image: quay.io/debezium/connect:3.0
+    image: quay.io/debezium/connect:3.0.4.Final
     build:
       context: ../../
       dockerfile: docker/connect/Dockerfile
@@ -136,7 +136,7 @@ services:
   go-api-demo-redis:
     container_name: go-api-demo-redis
     command: redis-server --requirepass pass
-    image: redis:7
+    image: redis:7.4.1
     build:
       context: ../../
       dockerfile: docker/redis/Dockerfile
@@ -145,7 +145,7 @@ services:
 
   go-api-demo-elasticsearch:
     container_name: go-api-demo-elastic
-    image: elasticsearch:8.16.1
+    image: elasticsearch:8.17.0
     build:
       context: ../../
       dockerfile: docker/elasticsearch/Dockerfile
