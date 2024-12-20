@@ -1,1 +1,1 @@
-FROM quay.io/debezium/kafka:3.0.4.Final
+FROM quay.io/debezium/kafka:3.0.6.Final
