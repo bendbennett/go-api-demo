@@ -1,1 +1,1 @@
-FROM otel/opentelemetry-collector:0.116.1
+FROM otel/opentelemetry-collector:0.118.0
