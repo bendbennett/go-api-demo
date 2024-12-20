@@ -3,7 +3,7 @@ module github.com/bendbennett/go-api-demo
 go 1.23.3
 
 require (
-	github.com/XSAM/otelsql v0.35.0
+	github.com/XSAM/otelsql v0.36.0
 	github.com/elastic/go-elasticsearch/v8 v8.17.0
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/joho/godotenv v1.5.1
-	github.com/linkedin/goavro/v2 v2.13.0
+	github.com/linkedin/goavro/v2 v2.13.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.7.0
@@ -26,8 +26,8 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.33.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.10.0
-	google.golang.org/grpc v1.69.2
-	google.golang.org/protobuf v1.36.0
+	google.golang.org/grpc v1.69.4
+	google.golang.org/protobuf v1.36.3
 	gopkg.in/go-playground/validator.v9 v9.31.0
 )
 
@@ -63,8 +63,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.33.0
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/net v0.33.0
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/net v0.34.0
+	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
