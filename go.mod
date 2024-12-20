@@ -3,7 +3,7 @@ module github.com/bendbennett/go-api-demo
 go 1.23.3
 
 require (
-	github.com/XSAM/otelsql v0.35.0
+	github.com/XSAM/otelsql v0.36.0
 	github.com/elastic/go-elasticsearch/v8 v8.17.0
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
