@@ -16,7 +16,7 @@ services:
 
   go-api-demo-prometheus:
     container_name: go-api-demo-prometheus
-    image: prom/prometheus:v3.0.1
+    image: prom/prometheus:v3.1.0
     build:
       context: ../../
       dockerfile: docker/prometheus/Dockerfile    
@@ -42,7 +42,7 @@ services:
 
   go-api-demo-otel-collector:
     container_name: go-api-demo-otel-collector
-    image: otel/opentelemetry-collector:0.116.1
+    image: otel/opentelemetry-collector:0.117.0
     build:
       context: ../../
       dockerfile: docker/otel/Dockerfile       
@@ -62,7 +62,7 @@ services:
 
   go-api-demo-jaeger:
     container_name: go-api-demo-jaeger
-    image: jaegertracing/all-in-one:1.64.0
+    image: jaegertracing/all-in-one:1.65.0
     build:
       context: ../../
       dockerfile: docker/jaeger/Dockerfile     
@@ -74,7 +74,7 @@ services:
 
   go-api-demo-zookeeper:
     container_name: go-api-demo-zookeeper
-    image: quay.io/debezium/zookeeper:3.0.4.Final
+    image: quay.io/debezium/zookeeper:3.1
     build:
       context: ../../
       dockerfile: docker/zookeeper/Dockerfile     
@@ -85,7 +85,7 @@ services:
 
   go-api-demo-kafka:
     container_name: go-api-demo-kafka
-    image: quay.io/debezium/kafka:3.0.4.Final
+    image: quay.io/debezium/kafka:3.1
     build:
       context: ../../
       dockerfile: docker/kafka/Dockerfile     
@@ -98,7 +98,7 @@ services:
 
   go-api-demo-connect:
     container_name: go-api-demo-connect
-    image: quay.io/debezium/connect:3.0.4.Final
+    image: quay.io/debezium/connect:3.1
     build:
       context: ../../
       dockerfile: docker/connect/Dockerfile
@@ -136,7 +136,7 @@ services:
   go-api-demo-redis:
     container_name: go-api-demo-redis
     command: redis-server --requirepass pass
-    image: redis:7.4.1
+    image: redis:7.4.2
     build:
       context: ../../
       dockerfile: docker/redis/Dockerfile
@@ -164,7 +164,7 @@ services:
 
   go-api-demo-schema-registry:
     container_name: go-api-demo-schema-registry
-    image: confluentinc/cp-schema-registry:7.7.1
+    image: confluentinc/cp-schema-registry:7.8.0
     build:
       context: ../../
       dockerfile: docker/schema/Dockerfile
