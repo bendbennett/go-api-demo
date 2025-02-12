@@ -4,7 +4,7 @@ go 1.23.3
 
 require (
 	github.com/XSAM/otelsql v0.36.0
-	github.com/elastic/go-elasticsearch/v8 v8.17.0
+	github.com/elastic/go-elasticsearch/v8 v8.17.1
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/go-sql-driver/mysql v1.8.1
@@ -48,7 +48,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/docker/docker v27.4.0+incompatible // indirect
-	github.com/elastic/elastic-transport-go/v8 v8.6.0 // indirect
+	github.com/elastic/elastic-transport-go/v8 v8.6.1 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-migrate/migrate/v4 v4.18.2
