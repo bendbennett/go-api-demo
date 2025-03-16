@@ -1,6 +1,7 @@
 module github.com/bendbennett/go-api-demo
 
 go 1.23.3
+toolchain go1.24.1
 
 require (
 	github.com/XSAM/otelsql v0.37.0
@@ -17,7 +18,7 @@ require (
 	github.com/redis/go-redis/v9 v9.7.1
 	github.com/segmentio/kafka-go v0.4.47
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.59.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.60.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0
