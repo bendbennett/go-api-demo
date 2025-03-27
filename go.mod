@@ -5,7 +5,7 @@ go 1.24
 toolchain go1.24.1
 
 require (
-	github.com/XSAM/otelsql v0.37.0
+	github.com/XSAM/otelsql v0.38.0
 	github.com/elastic/go-elasticsearch/v8 v8.17.1
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
