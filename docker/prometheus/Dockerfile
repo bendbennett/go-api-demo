@@ -1,1 +1,1 @@
-FROM prom/prometheus:v3.2.1
+FROM prom/prometheus:v3.3.0
