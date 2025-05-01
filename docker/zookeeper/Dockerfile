@@ -1,1 +1,1 @@
-FROM quay.io/debezium/zookeeper:3.1
+FROM quay.io/debezium/zookeeper:3.2
