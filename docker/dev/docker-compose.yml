@@ -1,7 +1,7 @@
 services:
   go-api-demo-db:
     container_name: go-api-demo-db
-    image: mysql:9.1
+    image: mysql:9.3
     build:
       context: ../../
       dockerfile: docker/mysql/Dockerfile
@@ -16,7 +16,7 @@ services:
 
   go-api-demo-prometheus:
     container_name: go-api-demo-prometheus
-    image: prom/prometheus:v3.0.1
+    image: prom/prometheus:v3.3.1
     build:
       context: ../../
       dockerfile: docker/prometheus/Dockerfile    
@@ -28,7 +28,7 @@ services:
 
   go-api-demo-grafana:
     container_name: go-api-demo-grafana
-    image: grafana/grafana:11.4.0
+    image: grafana/grafana:11.6.1
     build:
       context: ../../
       dockerfile: docker/grafana/Dockerfile      
@@ -42,7 +42,7 @@ services:
 
   go-api-demo-otel-collector:
     container_name: go-api-demo-otel-collector
-    image: otel/opentelemetry-collector:0.116.1
+    image: otel/opentelemetry-collector:0.123.0
     build:
       context: ../../
       dockerfile: docker/otel/Dockerfile       
@@ -62,7 +62,7 @@ services:
 
   go-api-demo-jaeger:
     container_name: go-api-demo-jaeger
-    image: jaegertracing/all-in-one:1.64.0
+    image: jaegertracing/all-in-one:1.68.0
     build:
       context: ../../
       dockerfile: docker/jaeger/Dockerfile     
