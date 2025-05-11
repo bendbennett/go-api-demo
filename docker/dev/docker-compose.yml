@@ -28,7 +28,7 @@ services:
 
   go-api-demo-grafana:
     container_name: go-api-demo-grafana
-    image: grafana/grafana:11.6.1
+    image: grafana/grafana:12.0.0
     build:
       context: ../../
       dockerfile: docker/grafana/Dockerfile      
