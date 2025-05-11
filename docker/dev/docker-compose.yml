@@ -98,7 +98,7 @@ services:
 
   go-api-demo-connect:
     container_name: go-api-demo-connect
-    image: quay.io/debezium/connect:3.0.4.Final
+    image: quay.io/debezium/connect:3.1.1.Final
     build:
       context: ../../
       dockerfile: docker/connect/Dockerfile
@@ -164,7 +164,7 @@ services:
 
   go-api-demo-schema-registry:
     container_name: go-api-demo-schema-registry
-    image: confluentinc/cp-schema-registry:7.7.1
+    image: confluentinc/cp-schema-registry:7.9.0
     build:
       context: ../../
       dockerfile: docker/schema/Dockerfile
