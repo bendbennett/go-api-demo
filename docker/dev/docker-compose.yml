@@ -136,7 +136,7 @@ services:
   go-api-demo-redis:
     container_name: go-api-demo-redis
     command: redis-server --requirepass pass
-    image: redis:7.4.1
+    image: redis:8.0.0
     build:
       context: ../../
       dockerfile: docker/redis/Dockerfile
@@ -145,7 +145,7 @@ services:
 
   go-api-demo-elasticsearch:
     container_name: go-api-demo-elastic
-    image: elasticsearch:8.17.0
+    image: elasticsearch:9.0.1
     build:
       context: ../../
       dockerfile: docker/elasticsearch/Dockerfile
