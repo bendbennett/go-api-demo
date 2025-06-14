@@ -24,9 +24,8 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 9,
+  "id": 16,
   "links": [],
-  "liveNow": false,
   "panels": [
     {
       "datasource": {
@@ -81,8 +80,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -109,20 +107,24 @@
           "showLegend": false
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "sum without (net_host_name,http_status_code) (rate(http_server_duration_milliseconds_count{http_method=\"GET\", http_route=\"/user\"}[1m]))",
+          "expr": "sum without (server_address,http_response_status_code) (rate(http_server_request_duration_seconds_count{http_request_method=\"GET\", http_route=\"/user\"}[1m]))",
           "interval": "",
           "legendFormat": "",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -130,15 +132,6 @@
       "type": "timeseries"
     },
     {
-      "cards": {},
-      "color": {
-        "cardColor": "#b4ff00",
-        "colorScale": "sqrt",
-        "colorScheme": "interpolateOranges",
-        "exponent": 0.5,
-        "mode": "opacity"
-      },
-      "dataFormat": "tsbuckets",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -154,8 +147,7 @@
             "scaleDistribution": {
               "type": "linear"
             }
-          },
-          "fieldMinMax": false
+          }
         },
         "overrides": []
       },
@@ -165,13 +157,7 @@
         "x": 6,
         "y": 0
       },
-      "heatmap": {},
-      "hideZeroBuckets": true,
-      "highlightCards": true,
       "id": 21,
-      "legend": {
-        "show": false
-      },
       "maxDataPoints": 50,
       "options": {
         "calculate": false,
@@ -211,53 +197,31 @@
           "axisPlacement": "left",
           "decimals": 0,
           "reverse": false,
-          "unit": "ms"
+          "unit": "s"
         }
       },
-      "pluginVersion": "11.2.2",
-      "reverseYBuckets": false,
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(rate(http_server_duration_milliseconds_bucket{http_method=\"GET\",http_route=\"/user\",http_status_code=\"200\"}[$__interval])) by (le)",
+          "expr": "sum(rate(http_server_request_duration_seconds_bucket{http_request_method=\"GET\",http_route=\"/user\",http_response_status_code=\"200\"}[$__interval])) by (le)",
           "format": "heatmap",
           "interval": "",
           "intervalFactor": 1,
           "legendFormat": "{{le}}",
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "GET /user 200",
-      "tooltip": {
-        "show": true,
-        "showHistogram": false
-      },
-      "type": "heatmap",
-      "xAxis": {
-        "show": true
-      },
-      "yAxis": {
-        "decimals": 0,
-        "format": "ms",
-        "logBase": 1,
-        "show": true
-      },
-      "yBucketBound": "auto"
+      "type": "heatmap"
     },
     {
-      "cards": {},
-      "color": {
-        "cardColor": "#f80320",
-        "colorScale": "sqrt",
-        "colorScheme": "interpolateOranges",
-        "exponent": 0.5,
-        "mode": "opacity"
-      },
-      "dataFormat": "tsbuckets",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -283,13 +247,7 @@
         "x": 12,
         "y": 0
       },
-      "heatmap": {},
-      "hideZeroBuckets": true,
-      "highlightCards": true,
       "id": 22,
-      "legend": {
-        "show": false
-      },
       "maxDataPoints": 50,
       "options": {
         "calculate": false,
@@ -327,42 +285,29 @@
           "axisPlacement": "left",
           "decimals": 0,
           "reverse": false,
-          "unit": "ms"
+          "unit": "s"
         }
       },
-      "pluginVersion": "11.2.2",
-      "reverseYBuckets": false,
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(rate(http_server_duration_milliseconds_bucket{http_method=\"GET\",http_route=\"/user\",http_status_code=~\"5.+\"}[$__interval])) by (le)",
+          "expr": "sum(rate(http_server_request_duration_seconds_bucket{http_request_method=\"GET\",http_route=\"/user\",http_response_status_code=~\"5.+\"}[$__interval])) by (le)",
           "format": "heatmap",
           "interval": "",
           "intervalFactor": 1,
           "legendFormat": "{{le}}",
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "GET /user 5xx",
-      "tooltip": {
-        "show": true,
-        "showHistogram": false
-      },
-      "type": "heatmap",
-      "xAxis": {
-        "show": true
-      },
-      "yAxis": {
-        "decimals": 0,
-        "format": "ms",
-        "logBase": 1,
-        "show": true
-      },
-      "yBucketBound": "auto"
+      "type": "heatmap"
     },
     {
       "datasource": {
@@ -417,20 +362,19 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "#EAB839",
-                "value": 500
+                "value": 0.1
               },
               {
                 "color": "red",
-                "value": 1000
+                "value": 0.5
               }
             ]
           },
-          "unit": "ms"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -450,20 +394,24 @@
           "showLegend": false
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "histogram_quantile(0.99,\n    sum(rate(\n        http_server_duration_milliseconds_bucket{http_method=\"GET\"}[1m]\n    )) by (http_method,le)\n)",
+          "expr": "histogram_quantile(0.99,\n    sum(rate(\n        http_server_request_duration_seconds_bucket{http_request_method=\"GET\"}[$__interval]\n    )) by (http_request_method,le)\n)",
           "interval": "",
           "legendFormat": "",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -523,8 +471,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -551,20 +498,24 @@
           "showLegend": false
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "sum without (net_host_name) (rate(http_server_duration_milliseconds_count{http_method=\"POST\", http_route=\"/user\"}[1m]))",
+          "expr": "sum without (server_address,http_response_status_code) (rate(http_server_request_duration_seconds_count{http_request_method=\"POST\", http_route=\"/user\"}[1m]))",
           "interval": "",
           "legendFormat": "",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -572,15 +523,6 @@
       "type": "timeseries"
     },
     {
-      "cards": {},
-      "color": {
-        "cardColor": "#b4ff00",
-        "colorScale": "sqrt",
-        "colorScheme": "interpolateOranges",
-        "exponent": 0.5,
-        "mode": "opacity"
-      },
-      "dataFormat": "tsbuckets",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -606,13 +548,7 @@
         "x": 6,
         "y": 7
       },
-      "heatmap": {},
-      "hideZeroBuckets": true,
-      "highlightCards": true,
       "id": 27,
-      "legend": {
-        "show": false
-      },
       "maxDataPoints": 50,
       "options": {
         "calculate": false,
@@ -650,52 +586,30 @@
           "axisPlacement": "left",
           "decimals": 0,
           "reverse": false,
-          "unit": "ms"
+          "unit": "s"
         }
       },
-      "pluginVersion": "11.2.2",
-      "reverseYBuckets": false,
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(rate(http_server_duration_milliseconds_bucket{http_method=\"POST\",http_route=\"/user\",http_status_code=\"201\"}[$__interval])) by (le)",
+          "expr": "sum(rate(http_server_request_duration_seconds_bucket{http_request_method=\"POST\",http_route=\"/user\",http_response_status_code=\"201\"}[$__interval])) by (le)",
           "format": "heatmap",
           "interval": "",
           "legendFormat": "{{le}}",
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "POST /user 201",
-      "tooltip": {
-        "show": true,
-        "showHistogram": false
-      },
-      "type": "heatmap",
-      "xAxis": {
-        "show": true
-      },
-      "yAxis": {
-        "decimals": 0,
-        "format": "ms",
-        "logBase": 1,
-        "show": true
-      },
-      "yBucketBound": "auto"
+      "type": "heatmap"
     },
     {
-      "cards": {},
-      "color": {
-        "cardColor": "rgba(247, 4, 23, 1)",
-        "colorScale": "sqrt",
-        "colorScheme": "interpolateOranges",
-        "exponent": 0.5,
-        "mode": "opacity"
-      },
-      "dataFormat": "tsbuckets",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -721,13 +635,7 @@
         "x": 12,
         "y": 7
       },
-      "heatmap": {},
-      "hideZeroBuckets": true,
-      "highlightCards": true,
       "id": 29,
-      "legend": {
-        "show": false
-      },
       "maxDataPoints": 50,
       "options": {
         "calculate": false,
@@ -768,38 +676,25 @@
           "unit": "ms"
         }
       },
-      "pluginVersion": "11.2.2",
-      "reverseYBuckets": false,
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(rate(http_server_duration_milliseconds_bucket{http_method=\"POST\",http_route=\"/user\",http_status_code=~\"5.+\"}[$__interval])) by (le)",
+          "expr": "sum(rate(http_server_request_duration_seconds_bucket{http_request_method=\"POST\",http_route=\"/user\",http_response_status_code=~\"5.+\"}[$__interval])) by (le)",
           "format": "heatmap",
           "interval": "",
           "legendFormat": "{{le}}",
+          "range": true,
           "refId": "A"
         }
       ],
       "title": "POST /user 5xx",
-      "tooltip": {
-        "show": true,
-        "showHistogram": false
-      },
-      "type": "heatmap",
-      "xAxis": {
-        "show": true
-      },
-      "yAxis": {
-        "decimals": 0,
-        "format": "ms",
-        "logBase": 1,
-        "show": true
-      },
-      "yBucketBound": "auto"
+      "type": "heatmap"
     },
     {
       "datasource": {
@@ -854,20 +749,19 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "#EAB839",
-                "value": 500
+                "value": 0.1
               },
               {
                 "color": "red",
-                "value": 1000
+                "value": 0.5
               }
             ]
           },
-          "unit": "ms"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -887,20 +781,24 @@
           "showLegend": false
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "histogram_quantile(0.99,\n    sum(rate(\n        http_server_duration_milliseconds_bucket{http_method=\"POST\"}[$__interval]\n    )) by (http_method,le)\n)",
+          "expr": "histogram_quantile(0.99,\n    sum(rate(\n        http_server_request_duration_seconds_bucket{http_request_method=\"POST\"}[$__interval]\n    )) by (http_request_method,le)\n)",
           "interval": "",
           "legendFormat": "",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -959,8 +857,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1018,10 +915,12 @@
           "showLegend": false
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
@@ -1104,8 +1003,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "#EAB839",
@@ -1171,10 +1069,12 @@
           "showLegend": false
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
@@ -1255,8 +1155,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1314,10 +1213,12 @@
           "showLegend": false
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
@@ -1347,8 +1248,9 @@
       "type": "timeseries"
     }
   ],
+  "preload": false,
   "refresh": "5s",
-  "schemaVersion": 39,
+  "schemaVersion": 41,
   "tags": [],
   "templating": {
     "list": []
@@ -1361,6 +1263,5 @@
   "timezone": "",
   "title": "user",
   "uid": "Ml6DaygHl",
-  "version": 2,
-  "weekStart": ""
+  "version": 2
 }

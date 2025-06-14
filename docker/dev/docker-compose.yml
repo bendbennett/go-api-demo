@@ -16,10 +16,10 @@ services:
 
   go-api-demo-prometheus:
     container_name: go-api-demo-prometheus
-    image: prom/prometheus:v3.3.1
+    image: prom/prometheus:v3.4.1
     build:
       context: ../../
-      dockerfile: docker/prometheus/Dockerfile    
+      dockerfile: docker/prometheus/Dockerfile
     restart: always
     volumes:
       - ../prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
@@ -31,7 +31,7 @@ services:
     image: grafana/grafana:12.0.0
     build:
       context: ../../
-      dockerfile: docker/grafana/Dockerfile      
+      dockerfile: docker/grafana/Dockerfile
     volumes:
       - ../grafana/config/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
       - ../grafana/config/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml
@@ -42,10 +42,10 @@ services:
 
   go-api-demo-otel-collector:
     container_name: go-api-demo-otel-collector
-    image: otel/opentelemetry-collector:0.123.0
+    image: otel/opentelemetry-collector:0.128.0
     build:
       context: ../../
-      dockerfile: docker/otel/Dockerfile       
+      dockerfile: docker/otel/Dockerfile
     restart: always
     command: ["--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}"]
     volumes:
@@ -62,10 +62,10 @@ services:
 
   go-api-demo-jaeger:
     container_name: go-api-demo-jaeger
-    image: jaegertracing/all-in-one:1.68.0
+    image: jaegertracing/all-in-one:1.70.0
     build:
       context: ../../
-      dockerfile: docker/jaeger/Dockerfile     
+      dockerfile: docker/jaeger/Dockerfile
     restart: always
     ports:
       - "16686:16686"
@@ -77,7 +77,7 @@ services:
     image: quay.io/debezium/zookeeper:3.0.4.Final
     build:
       context: ../../
-      dockerfile: docker/zookeeper/Dockerfile     
+      dockerfile: docker/zookeeper/Dockerfile
     ports:
       - "2181:2181"
       - "2888:2888"
@@ -88,7 +88,7 @@ services:
     image: quay.io/debezium/kafka:3.0.4.Final
     build:
       context: ../../
-      dockerfile: docker/kafka/Dockerfile     
+      dockerfile: docker/kafka/Dockerfile
     ports:
       - "9092:9092"
     environment:
@@ -136,7 +136,7 @@ services:
   go-api-demo-redis:
     container_name: go-api-demo-redis
     command: redis-server --requirepass pass
-    image: redis:8.0.0
+    image: redis:8.0.2
     build:
       context: ../../
       dockerfile: docker/redis/Dockerfile
