@@ -1,4 +1,4 @@
-FROM quay.io/debezium/connect:3.1.1.Final
+FROM quay.io/debezium/connect:3.1.2.Final
 
 COPY docker/connect/debezium-mysql.json /debezium-mysql.json
 COPY docker/connect/entrypoint-wrap.sh /entrypoint-wrap.sh
